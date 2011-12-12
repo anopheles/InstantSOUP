@@ -100,7 +100,7 @@
           </list>
         </t>
         <t>
-          <iref item="user"/>
+          <iref item="participant"/>
           <?rfc needLines="4"?>Participant
           <list>
             <t>
