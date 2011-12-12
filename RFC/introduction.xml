@@ -2,16 +2,26 @@
 
 	<section title="Purpose" anchor="intro.purpose">
 		<t>
-		The "Instant Satisfaction by Obscure Unstable Protocol" (InstantSOUP) is an application-level protocol for local massage exchange. The protocol was developped during a telematik project at Karlsruhe Institute of Technology (KIT) in year 2012. InstantSOUP connects the application user to a lobby in his network where he can find other users and chatrooms. Therefrom it provides multiple basic chat and chatroom functions, many of whom are there to communicate with each other.
+            The "Instant Satisfaction by Obscure Unstable Protocol" (InstantSOUP) is an application-level protocol for local message exchange.
+            The protocol was developed during a telematics project at Karlsruhe Institute of Technology (KIT) during the course of the winter semester 2011/2012.
+            InstantSOUP is responsible for connecting the user to a lobby in his/her local area network. Here the user is able to find other participants and chat rooms.
+            It provides basic chat functionality which is described thoroughly below <xref target="intro.features"/>.
 		</t>
 		<t>
-		The protocol is devided in two major concepts. First the lobby which is realized by peer to peer transferring a message to all recipients simultaneously. It helps to exchange informations about users and channels in PDUs and to ensure discovery.
-		The second part is a client server based architecture to ensure the massage transmission from user to user. The UDPs contain information about which users are destinated to become a message and what the message will contain.
-		</t>
-		<t>
-		"Features:"
+            The InstantSOUP protocol is divided into two major concepts, namely a lobby and a client-server architecture.
+            The lobby <xref target="intro.terminology.lobby"/> allows the user <xref target="intro.terminology.user"/>
+            to communicate with different participants <xref target="intro.terminology.participant"/> without explicitly joining a server <xref target="intro.terminology.server"/>.
+            The client-server architecture, on the other hand, allows the user to host a server which ultimately offers
+            different user-created channels<xref target="intro.terminology.channel"/> on which participants can join and chat.
 		</t>
 	</section>
+
+    <section title="Features" anchor="intro.features">
+    		<t>
+                features
+    		</t>
+    </section>
+
 
 	<section title="Requirements" anchor="intro.requirements">
 		<t>
@@ -77,6 +87,24 @@
           <list>
             <t>
               server description
+            </t>
+          </list>
+        </t>
+        <t>
+          <iref item="user"/>
+          <?rfc needLines="4"?>User
+          <list>
+            <t>
+              user description
+            </t>
+          </list>
+        </t>
+        <t>
+          <iref item="user"/>
+          <?rfc needLines="4"?>Participant
+          <list>
+            <t>
+               Participant description
             </t>
           </list>
         </t>
