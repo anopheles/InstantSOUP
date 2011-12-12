@@ -31,19 +31,65 @@
 	</section>
 
 	<section title="Terminology" anchor="intro.terminology">
-		<t>
-		   This specification uses a number of terms to refer to the roles
-		   played by participants in, and objects of, InstantSOUP.
-		</t>
-		<t>
-		  <iref item="lobby"/>
-		  <?rfc needLines="4"?>lobby
-		  <list>
 			<t>
-			  lobby description
+			   This specification uses a number of terms to refer to the roles
+			   played by participants in, and objects of, InstantSOUP.
 			</t>
-		  </list>
-		</t>
-	</section>
+			<t>
+			  <iref item="peer"/>
+			  <?rfc needLines="4"?>Peer
+			  <list>
+				<t>
+				  peer description
+				</t>
+			  </list>
+			</t>
+	        <t>
+	          <iref item="node"/>
+	          <?rfc needLines="4"?>Node
+	          <list>
+	            <t>
+	              node description
+	            </t>
+	          </list>
+	        </t>
+	        <t>
+	          <iref item="channel"/>
+	          <?rfc needLines="4"?>Channel
+	          <list>
+	            <t>
+	              channel description
+	            </t>
+	          </list>
+	        </t>
+	        <t>
+	          <iref item="client"/>
+	          <?rfc needLines="4"?>Client
+	          <list>
+	            <t>
+	              client description
+	            </t>
+	          </list>
+	        </t>
+	        <t>
+	          <iref item="server"/>
+	          <?rfc needLines="4"?>Server
+	          <list>
+	            <t>
+	              server description
+	            </t>
+	          </list>
+	        </t>
+	        <t>
+	          <iref item="pdu"/>
+	          <?rfc needLines="4"?>Protocol Data Unit
+	          <list>
+	            <t>
+	                Protocol Data Unit description
+	            </t>
+	          </list>
+	        </t>
+
+		</section>
 
 </section>
