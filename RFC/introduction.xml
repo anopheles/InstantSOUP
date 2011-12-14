@@ -45,79 +45,91 @@
            This specification uses a number of terms to refer to the roles
            played by participants in, and objects of, InstantSOUP.
         </t>
-        <t>
-          <iref item="peer"/>
-          <?rfc needLines="4"?>Peer
-          <list>
-            <t>
-              peer description
-            </t>
-          </list>
-        </t>
+		
         <t>
           <iref item="node"/>
           <?rfc needLines="4"?>Node
           <list>
             <t>
-              node description
+              A computer system connected to a communication network (SHOULD be a local area network).
             </t>
           </list>
         </t>
-        <t>
-          <iref item="channel"/>
-          <?rfc needLines="4"?>Channel
-          <list>
-            <t>
-              channel description
-            </t>
-          </list>
-        </t>
-        <t>
-          <iref item="client"/>
-          <?rfc needLines="4"?>Client
-          <list>
-            <t>
-              client description
-            </t>
-          </list>
-        </t>
-        <t>
-          <iref item="server"/>
-          <?rfc needLines="4"?>Server
-          <list>
-            <t>
-              server description
-            </t>
-          </list>
-        </t>
-        <t>
+		
+		<t>
           <iref item="user"/>
           <?rfc needLines="4"?>User
           <list>
             <t>
-              user description
+              A real person. He MAY achieves actions in the network which MAY triggers reactions. 
             </t>
           </list>
         </t>
-        <t>
-          <iref item="participant"/>
-          <?rfc needLines="4"?>Participant
+		
+		<t>
+          <iref item="peer"/>
+          <?rfc needLines="4"?>Peer
           <list>
             <t>
-               Participant description
+              A piece of software which runs on a node. It MUST implement the InstantSOU protocol as well as an interface for an user to interact with. It MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node). It MAY have a pseudonym.
             </t>
           </list>
+        </t>        
+		
+		<t>
+          <iref item="client"/>
+          <?rfc needLines="4"?>Client
+          <list>
+            <t>
+              A peer which accept services.
+            </t>
+			<t>
+			  It SHOULD be able to let a user create, enter, leave and send messages to a Channel.
+			</t>
+			<t>
+			  It MAY be a member of multiple channels.
+			</t>
+          </list>
         </t>
+        
+		<t>
+          <iref item="server"/>
+          <?rfc needLines="4"?>Server
+          <list>
+            <t>
+              A peer which offers services. 
+            </t>
+			<t>
+			  It MAY be the host for channels.
+			</t>
+          </list>
+        </t>
+        
+		<t>
+          <iref item="channel"/>
+          <?rfc needLines="4"?>Channel
+          <list>
+            <t>
+              A basic concept for the interaction between clients. A channel MAY be created by an user as an request to a server by a client.
+			</t>
+			<t>
+			  If a channel has no user connected with the lifetime of the channel depends on the implementation of the server.
+			</t>
+			<t>		
+			  The channel MUST have an unique identifier.
+			</t>
+          </list>
+        </t>
+		
         <t>
           <iref item="pdu"/>
           <?rfc needLines="4"?>Protocol Data Unit
           <list>
             <t>
-                Protocol Data Unit description
+                "Information that is delivered as a unit among peer entities of a network and that may contain control information, address information, or data." <eref target="http://en.wikipedia.org/w/index.php?title=Protocol_data_unit&oldid=458223646">Protocol data unit - Wikipedia, The Free Encyclopedia</eref
             </t>
           </list>
         </t>
-
 	</section>
 
 </section>
