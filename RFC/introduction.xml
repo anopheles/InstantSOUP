@@ -146,7 +146,7 @@
           <?rfc needLines="4"?>User
           <list>
             <t>
-              A real person. He MAY trigger actions in the network which MAY triggers reactions.
+              A real person. He MAY trigger actions in the network which MAY trigger reactions.
             </t>
           </list>
         </t>
