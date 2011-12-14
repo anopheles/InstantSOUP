@@ -19,7 +19,7 @@
     <section title="Features" anchor="intro.features">
     		
 		<t>
-		The protocol is able to
+		The protocol is able to:
 		</t>
 
 		<list style="format (%d)">
@@ -40,11 +40,11 @@
 			find other channels
 			</t>
 
-            <t>
+            		<t>
 			acquire pieces of information about channels and users
 			</t>
 
-    		<t>
+    			<t>
 			create channels
 			</t>
 
@@ -72,9 +72,9 @@
 			send messages to a user or to a channel
 			</t>
 
-            <t>
-            receive messages from a user or from a channel
-            </t>
+            		<t>
+            		receive messages from a user or from a channel
+            		</t>
 
 			<t>
 			set clear PDU content and instructions
@@ -156,7 +156,7 @@
           <?rfc needLines="4"?>Peer
           <list>
             <t>
-              A piece of software which runs on a node. It MUST implement the InstantSOU protocol as well as an interface for a user to interact with. It MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node). It MAY have a pseudonym.
+              A piece of software which runs on a node. It MUST implement the InstantSOUP protocol as well as an interface for a user to interact with. It MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node). It MAY have a pseudonym.
             </t>
           </list>
         </t>        
