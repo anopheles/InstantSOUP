@@ -19,17 +19,17 @@
     <section title="Features" anchor="intro.features">
     		
 		<t>
-		The protocol is able to:
+		The protocol is able to
 		</t>
 
 		<list style="format (%d)">
 
 			<t>
-			to work consistent (having timer durations in mind)
+			work consistent (having timer durations in mind)
 			</t>
 
 			<t>
-			to work without informational data loss
+			work without informational data loss
 			</t>
 
 			<t>
@@ -40,12 +40,12 @@
 			find other channels
 			</t>
 
-                	<t>
-			acquire inforamtions about channels and users
+            <t>
+			acquire pieces of information about channels and users
 			</t>
 
-    			<t>
-			creat channels
+    		<t>
+			create channels
 			</t>
 
 			<t>
@@ -65,12 +65,16 @@
 			</t>
 
 			<t>
-			set nick and channelname
+			set nick and channel name
 			</t>
 
 			<t>
-			send and reseive messages to a user or to a channel
+			send messages to a user or to a channel
 			</t>
+
+            <t>
+            receive messages from a user or from a channel
+            </t>
 
 			<t>
 			set clear PDU content and instructions
@@ -88,7 +92,7 @@
 		<list style="format (%d)">
 
 			<t>
-			other Message formates
+			other message formats
 			</t>
 
 			<t>
@@ -142,7 +146,7 @@
           <?rfc needLines="4"?>User
           <list>
             <t>
-              A real person. He MAY achieves actions in the network which MAY triggers reactions. 
+              A real person. He MAY trigger actions in the network which MAY triggers reactions.
             </t>
           </list>
         </t>
@@ -152,7 +156,7 @@
           <?rfc needLines="4"?>Peer
           <list>
             <t>
-              A piece of software which runs on a node. It MUST implement the InstantSOU protocol as well as an interface for an user to interact with. It MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node). It MAY have a pseudonym.
+              A piece of software which runs on a node. It MUST implement the InstantSOU protocol as well as an interface for a user to interact with. It MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node). It MAY have a pseudonym.
             </t>
           </list>
         </t>        
@@ -162,10 +166,10 @@
           <?rfc needLines="4"?>Client
           <list>
             <t>
-              A peer which accept services.
+              A peer which accepts services.
             </t>
 			<t>
-			  It SHOULD be able to let a user create, enter, leave and send messages to a Channel.
+			  It SHOULD be able to let a user create, enter, leave and send messages to a channel.
 			</t>
 			<t>
 			  It MAY be a member of multiple channels.
@@ -191,13 +195,13 @@
           <?rfc needLines="4"?>Channel
           <list>
             <t>
-              A basic concept for the interaction between clients. A channel MAY be created by an user as an request to a server by a client.
+              A basic concept describing the interaction between clients. A channel MAY be created by a user as a request to a server by a client.
 			</t>
 			<t>
-			  If a channel has no user connected with the lifetime of the channel depends on the implementation of the server.
+			  If a channel has no connected users, the lifetime of the channel depends on the implementation of the server.
 			</t>
 			<t>		
-			  The channel MUST have an unique identifier.
+			  The channel MUST have a unique identifier.
 			</t>
           </list>
         </t>
@@ -207,7 +211,7 @@
           <?rfc needLines="4"?>Protocol Data Unit
           <list>
             <t>
-                "Information that is delivered as a unit among peer entities of a network and that may contain control information, address information, or data." <eref target="http://en.wikipedia.org/w/index.php?title=Protocol_data_unit&oldid=458223646">Protocol data unit - Wikipedia, The Free Encyclopedia</eref
+                "Information that is delivered as a unit among peer entities of a network and that may contain control information, address information, or data." <eref target="http://en.wikipedia.org/w/index.php?title=Protocol_data_unit&oldid=458223646">Protocol data unit - Wikipedia, The Free Encyclopedia</eref>
             </t>
           </list>
         </t>
