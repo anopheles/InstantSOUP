@@ -25,11 +25,11 @@
 		<list style="format (%d)">
 
 			<t>
-			work consistent (having timer durations in mind)
+			work with consistent data. If there is a dismatch or an error a node could request the correct data.
 			</t>
 
 			<t>
-			work without informational data loss
+			work nearly without informational data loss
 			</t>
 
 			<t>
@@ -86,7 +86,7 @@
 
 		</list>
 		<t>
-		The Protocol is extandable for:
+		The protocol is extandable for:
 		</t>
 
 		<list style="format (%d)">
