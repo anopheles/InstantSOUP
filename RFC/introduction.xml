@@ -17,9 +17,90 @@
 	</section>
 
     <section title="Features" anchor="intro.features">
-    		<t>
-                features
-    		</t>
+    		
+		<t>
+		The protocol is able to:
+		</t>
+
+		<list style="format (%d)">
+
+			<t>
+			to work consistent (having timer durations in mind)
+			</t>
+
+			<t>
+			to work without informational data loss
+			</t>
+
+			<t>
+			find other users
+			</t>
+
+			<t>
+			find other channels
+			</t>
+
+                	<t>
+			acquire inforamtions about channels and users
+			</t>
+
+    			<t>
+			creat channels
+			</t>
+
+			<t>
+			close channels
+			</t>
+
+			<t>
+			let users join a channel
+			</t>
+
+			<t>
+			let users leave a channel
+			</t>
+
+			<t>
+			allow users to be in more then one channel
+			</t>
+
+			<t>
+			set nick and channelname
+			</t>
+
+			<t>
+			send and reseive messages to a user or to a channel
+			</t>
+
+			<t>
+			set clear PDU content and instructions
+			</t>
+
+			<t>
+			recognize if users or channels are timed out
+			</t>
+
+		</list>
+		<t>
+		The Protocol is extandable for:
+		</t>
+
+		<list style="format (%d)">
+
+			<t>
+			other Message formates
+			</t>
+
+			<t>
+			data exchange
+			</t>
+
+			<t>
+			additional server/client commands
+			</t>
+		</list>
+			
+
     </section>
 
 
