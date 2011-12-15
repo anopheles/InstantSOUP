@@ -17,6 +17,24 @@
 		</t>
 	</section>
 
+
+    <section title="Requirements" anchor="intro.requirements">
+   		<t>
+   		   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   		   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   		   document are to be interpreted as described in RFC 2119 <xref target="RFC2119"/>.
+   		</t>
+   		<t>
+   		   An implementation is not compliant if it fails to satisfy one or more
+   		   of the MUST or REQUIRED level requirements for the protocols it
+   		   implements. An implementation that satisfies all the MUST or REQUIRED
+   		   level and all the SHOULD level requirements for its protocols is said
+   		   to be "unconditionally compliant"; one that satisfies all the MUST
+   		   level requirements but not all the SHOULD level requirements for its
+   		   protocols is said to be "conditionally compliant."
+   		</t>
+   	</section>
+
     <section title="Features" anchor="intro.features">
 
 		<t>
@@ -26,11 +44,11 @@
 		<list style="format (%d)">
 
 			<t>
-			work with consistent data. If there is a dismatch or an error a node could request the correct data.
+			work with consistent data. If there is a mismatch or an error a node MAY request the correct data.
 			</t>
 
 			<t>
-			work nearly without informational data loss
+			work nearly without any informational data loss
 			</t>
 
 			<t>
@@ -82,12 +100,12 @@
 			</t>
 
 			<t>
-			recognize if users or channels are timed out
+			recognize if users or channels have timed out
 			</t>
 
 		</list>
 		<t>
-		The protocol is extandable for:
+		The protocol is extendable to:
 		</t>
 
 		<list style="format (%d)">
@@ -108,23 +126,6 @@
 
     </section>
 
-
-	<section title="Requirements" anchor="intro.requirements">
-		<t>
-		   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-		   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-		   document are to be interpreted as described in RFC 2119 <xref target="RFC2119"/>.
-		</t>
-		<t>
-		   An implementation is not compliant if it fails to satisfy one or more
-		   of the MUST or REQUIRED level requirements for the protocols it
-		   implements. An implementation that satisfies all the MUST or REQUIRED
-		   level and all the SHOULD level requirements for its protocols is said
-		   to be "unconditionally compliant"; one that satisfies all the MUST
-		   level requirements but not all the SHOULD level requirements for its
-		   protocols is said to be "conditionally compliant."
-		</t>
-	</section>
 
 	<section title="Terminology" anchor="intro.terminology">
         <t>
