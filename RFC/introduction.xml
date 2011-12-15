@@ -10,7 +10,7 @@
         </t>
         <t>
             The InstantSOUP protocol is divided into two major concepts, namely a lobby<xref target="intro.terminology.lobby"/> and a client-server architecture.
-            The lobby allows the user<xref target="intro.terminology.user"/> to communicate with different participants
+            The lobby allows the user<xref target="intro.terminology.user"/> to communicate with different users
             without explicitly joining a server<xref target="intro.terminology.server"/>. This is realized by using peer-to-peer communication.
             The client-server architecture, on the other hand, allows the user to host a server which ultimately offers
             different user-created channels<xref target="intro.terminology.channel"/> on which participants can join and chat.
@@ -156,7 +156,7 @@
           <?rfc needLines="4"?>Peer
           <list>
             <t>
-              A piece of software which runs on a node. It MUST implement the InstantSOUP protocol as well as an interface for a user to interact with. It MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node). It MAY have a pseudonym.
+              A piece of software which runs on a node. It MUST implement the InstantSOU protocol as well as an interface for a user to interact with. It MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node). It MAY have a pseudonym.
             </t>
           </list>
         </t>
