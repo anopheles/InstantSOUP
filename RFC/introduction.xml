@@ -10,7 +10,7 @@
         </t>
         <t>
             The InstantSOUP protocol is divided into two major concepts, namely a lobby<xref target="intro.terminology.lobby"/> and a client-server architecture.
-            The lobby allows the user<xref target="intro.terminology.user"/> to communicate with different participants
+            The lobby allows the user<xref target="intro.terminology.user"/> to discover different participants
             without explicitly joining a server<xref target="intro.terminology.server"/>. This is realized by using peer-to-peer communication.
             The client-server architecture, on the other hand, allows the user to host a server which ultimately offers
             different user-created channels<xref target="intro.terminology.channel"/> on which participants can join and chat.
@@ -44,7 +44,7 @@
         <list style="format (%d)">
 
             <t>
-            work with consistent data. If there is a mismatch or an error a node MAY request the correct data.
+            work with consistent data.
             </t>
 
             <t>
@@ -88,11 +88,11 @@
             </t>
 
             <t>
-            send messages to a user or to a channel
+            send messages to a channel
             </t>
 
             <t>
-            receive messages from a user or from a channel
+            receive messages from a channel
             </t>
 
             <t>
