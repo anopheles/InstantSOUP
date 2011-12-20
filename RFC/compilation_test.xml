@@ -120,13 +120,13 @@
             The protocol was developed during a telematics project at Karlsruhe Institute of Technology (KIT) during the course of the winter semester 2011/2012.
             InstantSOUP is responsible for connecting the user to a lobby in his or her local area network.
             In this environment the user is able to interact with other participants and chat rooms.
-            It provides basic chat functionality which is described thoroughly below<xref target="intro.features"/>.
+            It provides basic chat functionality which is described thoroughly below in <xref target="intro.features"/>.
         </t>
         <t>
             The InstantSOUP protocol is divided into two major concepts, namely a lobby and a client-server architecture.
             The lobby allows the user to discover different users without explicitly joining a server.
             The client-server architecture, on the other hand, allows the user to host a server which ultimately offers
-            different user-created channels on which participants can join and chat.
+            different user-created channels on which other users can join and chat.
         </t>
     </section>
     <section title="Requirements" anchor="intro.requirements">
@@ -176,7 +176,7 @@
                     allow users to be in more than one channel
                 </t>
                 <t>
-                    set nick and channel name
+                    set a pseudonym for client and/or server
                 </t>
                 <t>
                     invite users to a private channel
@@ -199,7 +199,7 @@
             </list>
         </t>
         <t>
-        The protocol is extendable to:
+            The protocol is extendable to:
         </t>
         <t>
             <list style="format (%d)">
@@ -207,7 +207,7 @@
                     other message formats
                 </t>
                 <t>
-                    data exchange
+                    other types of data exchange
                 </t>
                 <t>
                     additional server/client commands
@@ -243,7 +243,9 @@
             Peer
             <list>
                 <t>
-                    A piece of software which runs on a node. It MUST implement the InstantSOUP protocol as well as it MUST have an unique identifier (MAY be an UUID as described in RFC 4122 or simply the MAC address of the node).
+                    A piece of software which runs on a node. It MUST implement the InstantSOUP protocol as well
+                    as it MUST have an unique identifier (MAY be an UUID as described in RFC 4122 or simply the
+                    MAC address of the node).
                 </t>
                 <t>
                     It MAY have an interface for a user to interact with.
@@ -285,10 +287,13 @@
             Channel
             <list>
                 <t>
-                    A basic concept describing the interaction between clients. A channel MAY be created by a user as a request to a server by a client. A channel MAY be private which means only limited client members.
+                    A basic concept describing the interaction between clients. A channel MAY be created by
+                    a user as a request to a server by a client. A channel MAY be private which means only
+                    limited client members.
                 </t>
                 <t>
-                    If a channel has no connected users, the lifetime of the channel depends on the implementation of the server.
+                    If a channel has no connected users, the lifetime of the channel depends on the implementation
+                    of the server.
                 </t>
             </list>
         </t>
@@ -297,7 +302,10 @@
             Protocol Data Unit
             <list>
                 <t>
-                    "Information that is delivered as a unit among peer entities of a network and that may contain control information, address information, or data." <eref target="http://en.wikipedia.org/w/index.php?title=Protocol_data_unit&amp;oldid=458223646">Protocol data unit - Wikipedia, The Free Encyclopedia</eref>
+                    "Information that is delivered as a unit among peer entities of a network and that may contain
+                    control information, address information, or data."
+                    <eref target="http://en.wikipedia.org/w/index.php?title=Protocol_data_unit&amp;oldid=458223646">
+                    (Protocol data unit - Wikipedia, The Free Encyclopedia)</eref>
                 </t>
             </list>
         </t>
