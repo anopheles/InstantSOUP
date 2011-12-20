@@ -1,5 +1,4 @@
 <section title="Introduction" anchor="introduction">
-
     <section title="Purpose" anchor="intro.purpose">
         <t>
             The "Instant Satisfaction by Obscure Unstable Protocol" (InstantSOUP) is an application-level protocol for local message exchange.
@@ -16,205 +15,173 @@
             different user-created channels<xref target="intro.terminology.channel"/> on which participants can join and chat.
         </t>
     </section>
-
-
     <section title="Requirements" anchor="intro.requirements">
-           <t>
-              The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
-              "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
-              document are to be interpreted as described in RFC 2119 <xref target="RFC2119"/>.
-           </t>
-           <t>
-              An implementation is not compliant if it fails to satisfy one or more
-              of the MUST or REQUIRED level requirements for the protocols it
-              implements. An implementation that satisfies all the MUST or REQUIRED
-              level and all the SHOULD level requirements for its protocols is said
-              to be "unconditionally compliant"; one that satisfies all the MUST
-              level requirements but not all the SHOULD level requirements for its
-              protocols is said to be "conditionally compliant."
-           </t>
-       </section>
-
-    <section title="Features" anchor="intro.features">
-
         <t>
-        The protocol is able to:
+            The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+            "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+            document are to be interpreted as described in RFC 2119 <xref target="RFC2119"/>.
         </t>
-
+        <t>
+            An implementation is not compliant if it fails to satisfy one or more
+            of the MUST or REQUIRED level requirements for the protocols it
+            implements. An implementation that satisfies all the MUST or REQUIRED
+            level and all the SHOULD level requirements for its protocols is said
+            to be "unconditionally compliant"; one that satisfies all the MUST
+            level requirements but not all the SHOULD level requirements for its
+            protocols is said to be "conditionally compliant."
+        </t>
+    </section>
+    <section title="Features" anchor="intro.features">
+        <t>
+            The protocol is able to:
+        </t>
         <list style="format (%d)">
-
             <t>
-            find other users.
+                find other users.
             </t>
-
             <t>
-            find other channels.
+                find other channels.
             </t>
-
             <t>
-            send pieces of information about channels and users.
+                send pieces of information about channels and users.
             </t>
-
             <t>
-            create channels.
+                create channels.
             </t>
-
             <t>
-            close channels.
+                close channels.
             </t>
-
             <t>
-            let users join a channel.
+                let users join a channel.
             </t>
-
             <t>
-            let users leave a channel.
+                let users leave a channel.
             </t>
-
             <t>
-            allow users to be in more than one channel.
+                allow users to be in more than one channel.
             </t>
-
             <t>
-            set nick and channel name.
+                set nick and channel name.
             </t>
-
             <t>
-	    invite users to a private Channel.
-	    </t>
-
-	    <t>
-	    receive invites from other users.
-	    </t>
-
-	    <t>
-            send messages to a channel. The channel can be public or private.
+                invite users to a private Channel.
             </t>
-
             <t>
-            receive messages from a channel. The channel can be public or private.
+                receive invites from other users.
             </t>
-
             <t>
-            recognize if users or channels have timed out.
+                send messages to a channel. The channel can be public or private.
             </t>
-
             <t>
-            work nearly without any informational data loss.
+                receive messages from a channel. The channel can be public or private.
             </t>
-
+            <t>
+                recognize if users or channels have timed out.
+            </t>
+            <t>
+                work nearly without any informational data loss.
+            </t>
         </list>
         <t>
         The protocol is extendable to:
         </t>
-
         <list style="format (%d)">
             <t>
-            other message formats
+                other message formats
             </t>
-
             <t>
-            data exchange
+                data exchange
             </t>
-
             <t>
-            additional server/client commands
+                additional server/client commands
             </t>
         </list>
-
     </section>
-
-
     <section title="Terminology" anchor="intro.terminology">
         <t>
-           This specification uses a number of terms to refer to the roles
-           played by participants in, and objects of, InstantSOUP.
+            This specification uses a number of terms to refer to the roles
+            played by participants in, and objects of, InstantSOUP.
         </t>
-
         <t>
-          <iref item="node"/>
-          <?rfc needLines="4"?>Node
-          <list>
-            <t>
-              A computer system connected to a communication network (SHOULD be a local area network).
-            </t>
-          </list>
+            <iref item="node"/>
+            Node
+            <list>
+                <t>
+                    A computer system connected to a communication network (MUST be a local area network).
+                </t>
+            </list>
         </t>
-
         <t>
-          <iref item="user"/>
-          <?rfc needLines="4"?>User
-          <list>
-            <t>
-              A real person. He MAY trigger actions in the network which MAY trigger reactions.
-            </t>
-          </list>
+            <iref item="user"/>
+            User
+            <list>
+                <t>
+                    A real person. He MAY trigger actions in the network which MAY trigger reactions.
+                </t>
+            </list>
         </t>
-
         <t>
-          <iref item="peer"/>
-          <?rfc needLines="4"?>Peer
-          <list>
-            <t>
-              A piece of software which runs on a node. It MUST implement the InstantSOUP protocol as well as an interface for a user to interact with. It MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node). It MAY have a pseudonym.
-            </t>
-          </list>
+            <iref item="peer"/>
+            Peer
+            <list>
+                <t>
+                    A piece of software which runs on a node. It MUST implement the InstantSOUP protocol as well as it MUST have an unique identifier (MAY be an UUID as described in RFC 4122 <xref target="RFC4122"/> or simply the MAC address of the node).
+                </t>
+                <t>
+                    It MAY have an interface for a user to interact with.
+                </t>
+                <t>
+                    It MAY have a pseudonym.
+                </t>
+            </list>
         </t>
-
         <t>
-          <iref item="client"/>
-          <?rfc needLines="4"?>Client
-          <list>
-            <t>
-              A peer which accepts services.
-            </t>
-            <t>
-              It SHOULD be able to let a user create, enter, leave and send messages to a channel.
-            </t>
-            <t>
-              It MAY be a member of multiple channels.
-            </t>
-          </list>
+            <iref item="client"/>
+            Client
+            <list>
+                <t>
+                    A peer which accepts services.
+                </t>
+                <t>
+                    It SHOULD be able to let a user create, enter, leave and send messages to a channel.
+                </t>
+                <t>
+                    It MAY be a member of multiple channels.
+                </t>
+            </list>
         </t>
-
         <t>
-          <iref item="server"/>
-          <?rfc needLines="4"?>Server
-          <list>
-            <t>
-              A peer which offers services.
-            </t>
-            <t>
-              It MAY be the host for channels.
-            </t>
-          </list>
+            <iref item="server"/>
+            Server
+            <list>
+                <t>
+                    A peer which offers services.
+                </t>
+                <t>
+                    It MAY be the host for channels.
+                </t>
+            </list>
         </t>
-
         <t>
-          <iref item="channel"/>
-          <?rfc needLines="4"?>Channel
-          <list>
-            <t>
-              A basic concept describing the interaction between clients. A channel MAY be created by a user as a request to a server by a client.
-            </t>
-            <t>
-              If a channel has no connected users, the lifetime of the channel depends on the implementation of the server.
-            </t>
-            <t>
-              The channel MUST have a unique identifier.
-            </t>
-          </list>
+            <iref item="channel"/>
+            Channel
+            <list>
+                <t>
+                    A basic concept describing the interaction between clients. A channel MAY be created by a user as a request to a server by a client. A channel MAY be private which means only limited client members.
+                </t>
+                <t>
+                    If a channel has no connected users, the lifetime of the channel depends on the implementation of the server.
+                </t>
+            </list>
         </t>
-
         <t>
-          <iref item="pdu"/>
-          <?rfc needLines="4"?>Protocol Data Unit
-          <list>
-            <t>
-                "Information that is delivered as a unit among peer entities of a network and that may contain control information, address information, or data." <eref target="http://en.wikipedia.org/w/index.php?title=Protocol_data_unit&amp;oldid=458223646">Protocol data unit - Wikipedia, The Free Encyclopedia</eref>
-            </t>
-          </list>
+            <iref item="pdu"/>
+            Protocol Data Unit
+            <list>
+                <t>
+                    "Information that is delivered as a unit among peer entities of a network and that may contain control information, address information, or data." <eref target="http://en.wikipedia.org/w/index.php?title=Protocol_data_unit&amp;oldid=458223646">Protocol data unit - Wikipedia, The Free Encyclopedia</eref>
+                </t>
+            </list>
         </t>
     </section>
-
 </section>
