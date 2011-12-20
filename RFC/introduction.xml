@@ -174,7 +174,7 @@
                 <t>
                     A basic concept describing the interaction between clients. A channel MAY be created by
                     a user as a request to a server by a client. A channel MAY be private which indicates that only
-                    specific clients can be members of the channel.
+                    specific clients can be a member of the channel.
                 </t>
                 <t>
                     If a channel has no connected users, the lifetime of the channel depends on the implementation
