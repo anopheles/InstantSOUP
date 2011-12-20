@@ -37,49 +37,49 @@
         <t>
             <list style="format (%d)">
                 <t>
-                    find other users.
+                    find other users
                 </t>
                 <t>
-                    find other channels.
+                    find other channels
                 </t>
                 <t>
-                    send pieces of information about channels and users.
+                    send pieces of information about channels and users
                 </t>
                 <t>
-                    create channels.
+                    create channels
                 </t>
                 <t>
-                    close channels.
+                    close channels
                 </t>
                 <t>
-                    let users join a channel.
+                    let users join a channel
                 </t>
                 <t>
-                    let users leave a channel.
+                    let users leave a channel
                 </t>
                 <t>
-                    allow users to be in more than one channel.
+                    allow users to be in more than one channel
                 </t>
                 <t>
-                    set nick and channel name.
+                    set nick and channel name
                 </t>
                 <t>
-                    invite users to a private Channel.
+                    invite users to a private channel
                 </t>
                 <t>
-                    receive invites from other users.
+                    receive invites from other users
                 </t>
                 <t>
-                    send messages to a channel. The channel can be public or private.
+                    send messages to a channel
                 </t>
                 <t>
-                    receive messages from a channel. The channel can be public or private.
+                    receive messages from a channel
                 </t>
                 <t>
-                    recognize if users or channels have timed out.
+                    recognize if users or channels have timed out
                 </t>
                 <t>
-                    work nearly without any informational data loss.
+                    work nearly without any informational data loss
                 </t>
             </list>
         </t>
