@@ -44,63 +44,63 @@
         <list style="format (%d)">
 
             <t>
-            work with consistent data.
+            find other users.
             </t>
 
             <t>
-            work nearly without any informational data loss
+            find other channels.
             </t>
 
             <t>
-            find other users
+            send pieces of information about channels and users.
             </t>
 
             <t>
-            find other channels
+            create channels.
             </t>
 
             <t>
-            acquire pieces of information about channels and users
+            close channels.
             </t>
 
             <t>
-            create channels
+            let users join a channel.
             </t>
 
             <t>
-            close channels
+            let users leave a channel.
             </t>
 
             <t>
-            let users join a channel
+            allow users to be in more than one channel.
             </t>
 
             <t>
-            let users leave a channel
+            set nick and channel name.
             </t>
 
             <t>
-            allow users to be in more than one channel
+	    invite users to a private Channel.
+	    </t>
+
+	    <t>
+	    receive invites from other users.
+	    </t>
+
+	    <t>
+            send messages to a channel. The channel can be public or private.
             </t>
 
             <t>
-            set nick and channel name
+            receive messages from a channel. The channel can be public or private.
             </t>
 
             <t>
-            send messages to a channel
+            recognize if users or channels have timed out.
             </t>
 
             <t>
-            receive messages from a channel
-            </t>
-
-            <t>
-            set clear PDU content and instructions
-            </t>
-
-            <t>
-            recognize if users or channels have timed out
+            work nearly without any informational data loss.
             </t>
 
         </list>
