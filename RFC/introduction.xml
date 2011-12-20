@@ -8,11 +8,10 @@
             It provides basic chat functionality which is described thoroughly below<xref target="intro.features"/>.
         </t>
         <t>
-            The InstantSOUP protocol is divided into two major concepts, namely a lobby<xref target="intro.terminology.lobby"/> and a client-server architecture.
-            The lobby allows the user<xref target="intro.terminology.user"/> to discover different users
-            without explicitly joining a server<xref target="intro.terminology.server"/>. This is realized by using peer-to-peer communication.
+            The InstantSOUP protocol is divided into two major concepts, namely a lobby and a client-server architecture.
+            The lobby allows the user to discover different users without explicitly joining a server.
             The client-server architecture, on the other hand, allows the user to host a server which ultimately offers
-            different user-created channels<xref target="intro.terminology.channel"/> on which participants can join and chat.
+            different user-created channels on which participants can join and chat.
         </t>
     </section>
     <section title="Requirements" anchor="intro.requirements">
