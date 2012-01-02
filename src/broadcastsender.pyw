@@ -45,7 +45,7 @@
 
 from PyQt4 import QtCore, QtGui, QtNetwork
 
-from instantsoup import *
+from instantsoupdata import *
 
 class Sender(QtGui.QDialog):
     def __init__(self, parent=None):

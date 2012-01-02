@@ -12,6 +12,8 @@ In this environment the user is able to interact with other participants and cha
 
 import sys
 
+
+from instantsoupdata import *
 from PyQt4 import QtCore, QtGui, uic
 from instantsoupdata import InstantSoupData
 
