@@ -1,9 +1,3 @@
-'''
-Created on 02.01.2012
-
-@author: Kai
-'''
-
 from construct import Container, Enum, PrefixedArray, Struct, ULInt16, ULInt8, OptionalGreedyRepeater, CString, Switch
 
 class InstantSoupData(object):
