@@ -16,8 +16,6 @@ if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     alice = Client("alice")
     bob = Client("bob")
+    shawn = Client("shawn")
     sys.exit(app.exec_())
-
-
-
 

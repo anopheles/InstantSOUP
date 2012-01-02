@@ -52,8 +52,9 @@ class InstantSoupData(object):
                      CString('ClientID'),
                      OptionalGreedyRange(Option))
 
-
 class Client(QtCore.QObject):
+    new_client = QtCore.pyqtSignal() # emitted when a new client is discovered
+    client_nick_change = QtCore.pyqtSignal() # emitted when a nick of a client is changed
 
     def __init__(self, nickname="Telematik"):
         QtCore.QObject.__init__(self)
@@ -63,6 +64,16 @@ class Client(QtCore.QObject):
         self.lobby_users = {} # mapping from client.id to nickname
 
         self.send_client_nick()
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self._send_regular_pdu)
+        self.peer_id = 0
+        self.timer.start(15000)
+
+        self.new_client.connect(self.send_client_nick)
+
+    def _send_regular_pdu(self):
+        self.peer_id += 1
+        log.debug("sending regular")
 
     def setup_socket(self):
         self.udp_socket = QtNetwork.QUdpSocket(self)
@@ -84,17 +95,20 @@ class Client(QtCore.QObject):
             datagram, host, port = self.udp_socket.readDatagram(self.udp_socket.pendingDatagramSize())
             #print self, "received datagram", datagram
             packet = InstantSoupData.peerPDU.parse(datagram)
-
-            for option in packet["Option"]:
-                try:
+            if packet["ClientID"] != self.id:
+                for option in packet["Option"]:
                     if option["OptionID"] == "CLIENT_NICK_OPTION":
-                        if packet["ClientID"] != self.id:
-                            # new user name found or user name was changed
-                            self.lobby_users[packet["ClientID"]] = option["OptionData"]
-                except KeyError:
-                    pass
-
-            log.debug((self, "lobby_users:" % self.lobby_users))
+                        # new client found or client nick was changed
+                        if self.lobby_users.has_key(packet["ClientID"]):
+                            # user already exists
+                            if self.lobby_users[packet["ClientID"]] != option["OptionData"]:
+                                # client nick was changed
+                                self.client_nick_change.emit()
+                        else:
+                            # add new client
+                            self.new_client.emit()
+                        self.lobby_users[packet["ClientID"]] = option["OptionData"]
+            log.debug((self, "lobby_users:%s" % self.lobby_users))
 
     def _send_datagram(self, datagram):
         self.udp_socket.writeDatagram(datagram, group_address, broadcast_port)
