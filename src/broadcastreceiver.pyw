@@ -53,8 +53,11 @@ class Receiver(QtGui.QDialog):
         self.statusLabel = QtGui.QLabel("Listening for broadcasted messages")
         quitButton = QtGui.QPushButton("&Quit")
 
+        groupAddress = QtNetwork.QHostAddress("239.255.99.63")
+
         self.udpSocket = QtNetwork.QUdpSocket(self)
-        self.udpSocket.bind(45454)
+        self.udpSocket.bind(55555, QtNetwork.QUdpSocket.ShareAddress)
+        self.udpSocket.joinMulticastGroup(groupAddress)
 
         self.udpSocket.readyRead.connect(self.processPendingDatagrams)
         quitButton.clicked.connect(self.close)

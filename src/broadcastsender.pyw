@@ -61,6 +61,7 @@ class Sender(QtGui.QDialog):
 
         self.timer = QtCore.QTimer(self)
         self.udpSocket = QtNetwork.QUdpSocket(self)
+        #self.udpSocket.setSocketOption(QtNetwork.QAbstractSocket.MulticastTtlOption, 255)
         self.messageNo = 1
 
         self.startButton.clicked.connect(self.startBroadcasting)
@@ -85,7 +86,7 @@ class Sender(QtGui.QDialog):
                                                             Container(OptionID="CLIENT_NICK_OPTION", OptionData="Susan")]
                                           )
         )
-        self.udpSocket.writeDatagram(data, QtNetwork.QHostAddress(QtNetwork.QHostAddress.Broadcast), 45454)
+        self.udpSocket.writeDatagram(data, QtNetwork.QHostAddress("239.255.99.63"), 55555)
         self.messageNo += 1
 
 
