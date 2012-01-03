@@ -141,7 +141,7 @@ class Client(QtCore.QObject):
                         else:
                             # add new client
                             self.new_client.emit()
-                        self.lobby_users[packet["ID"]] = option["OptionID"]
+                        self.lobby_users[packet["ID"]] = option["OptionData"]
                     if option["OptionID"] == "SERVER_OPTION":
                         # add new server
                         socket = QtNetwork.QTcpSocket()
