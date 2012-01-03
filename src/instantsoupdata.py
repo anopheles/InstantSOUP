@@ -1,21 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
 import logging
 import uuid
 
-
-from construct import Container, Enum, PrefixedArray, Struct, ULInt16, ULInt8, OptionalGreedyRange, CString, Switch
-from PyQt4 import QtGui, QtCore, QtNetwork
-
+from construct import Container, Enum, PrefixedArray, Struct, ULInt32, ULInt16, ULInt8, OptionalGreedyRange, PascalString, CString, Switch
+from PyQt4 import QtCore, QtNetwork
+from functools import partial
 
 log = logging.getLogger("instantsoup")
 log.setLevel(logging.DEBUG)
 
 group_address = QtNetwork.QHostAddress("239.255.99.63")
 broadcast_port = 55555
-server_port = 49152
+server_port = 49172
 
 class InstantSoupData(object):
 
@@ -52,19 +50,22 @@ class InstantSoupData(object):
                      CString('ID'),
                      OptionalGreedyRange(Option))
 
+    command = PascalString("command", length_field=ULInt32("length"))
+
 
 class Client(QtCore.QObject):
     new_client = QtCore.pyqtSignal() # emitted when a new client is discovered
     client_nick_change = QtCore.pyqtSignal() # emitted when a nick of a client is changed
     new_server = QtCore.pyqtSignal() # emitted when a new server is discovered
+    message_received = QtCore.pyqtSignal(str) # emitted a client received a message from a server, for testing purposes
 
-    def __init__(self, nickname="Telematik"):
-        QtCore.QObject.__init__(self)
+    def __init__(self, nickname="Telematik", parent=None):
+        QtCore.QObject.__init__(self, parent)
         self.nickname = nickname
         self.id = str(uuid.uuid1())
         self.setup_socket()
         self.lobby_users = {} # mapping from client.id to nickname
-        self.servers = {}
+        self.servers = {} # mapping from (server.id, channel) to a tuple containing (address, port, tcp_socket)
 
         self.send_client_nick()
         self.timer = QtCore.QTimer()
@@ -72,23 +73,41 @@ class Client(QtCore.QObject):
         self.peer_id = 0
         self.timer.start(15000)
 
+        # this is actually not part of InstantSOUP specification but speeds up the discovery
         self.new_client.connect(self.send_client_nick)
+        self.new_server.connect(self.send_client_nick)
 
-        # Testing
-        self.new_server.connect(self.receive_message_from_server) # for testing purposes
+    def join_channel(self, channel_name, server_id):
+        self.send_command_to_server("JOIN %s" % channel_name)
 
-    def receive_message_from_server(self):
-        for server_id, server_port in self.servers.items():
-            self.client_thread = ClientThread()
-            self.client_thread.request_new_command(QtNetwork.QHostAddress.LocalHost, server_port)
-            self.client_thread.new_command.connect(self.handle_command)
+    def say(self, text, channel_name, server_id):
+        self.send_command_to_server("SAY %s" % text)
 
-    def _send_message_to_server(self, server, port, message):
-        pass
+    def standby(self, peer_id, channel_name, server_id):
+        self.send_command_to_server("STANDBY %s" % peer_id)
 
+    def exit(self, channel_name, server_id):
+        self.send_command_to_server("EXIT")
 
-    def handle_command(self, command):
-        print "handling command", command
+    def send_command_to_server(self, command, server_id="1", channel=None):
+        try:
+            (address, port, socket) = self.servers[(server_id, channel)]
+            socket.connectToHost(address, port) # checking socket.state doesn't seem to work
+        except KeyError:
+            # get address and port from default channel
+            address, port, _ = self.servers[(server_id, None)]
+            socket = QtNetwork.QTcpSocket()
+            socket.connectToHost(address, port)
+            self.servers[(server_id, channel)] = (address, port, socket)
+
+        if socket.waitForConnected(5000):
+            socket.write(InstantSoupData.command.build(command))
+            socket.waitForBytesWritten(1000)
+            socket.waitForReadyRead(1000)
+            response = socket.readAll()
+            self.message_received.emit(str(response))
+        else:
+            log.error((socket.error(), socket.errorString()))
 
     def _send_regular_pdu(self):
         self.peer_id += 1
@@ -108,8 +127,7 @@ class Client(QtCore.QObject):
 
     def _process_pending_datagrams(self):
         while self.udp_socket.hasPendingDatagrams():
-            datagram, host, port = self.udp_socket.readDatagram(self.udp_socket.pendingDatagramSize())
-            #print self, "received datagram", datagram
+            datagram, address, port = self.udp_socket.readDatagram(self.udp_socket.pendingDatagramSize())
             packet = InstantSoupData.peerPDU.parse(datagram)
             if packet["ID"] != self.id:
                 for option in packet["Option"]:
@@ -123,10 +141,11 @@ class Client(QtCore.QObject):
                         else:
                             # add new client
                             self.new_client.emit()
-                        self.lobby_users[packet["ID"]] = option["OptionData"]
+                        self.lobby_users[packet["ID"]] = option["OptionID"]
                     if option["OptionID"] == "SERVER_OPTION":
                         # add new server
-                        self.servers[packet["ID"]] = option["OptionData"]["Port"]
+                        socket = QtNetwork.QTcpSocket()
+                        self.servers[(packet["ID"], None)] = (address, option["OptionData"]["Port"], socket)
                         self.new_server.emit()
             log.debug(self)
 
@@ -136,95 +155,19 @@ class Client(QtCore.QObject):
     def __repr__(self):
         return "Client(%s, %s, lobby_users:%s, servers:%s)" % (self.nickname, self.id, self.lobby_users, self.servers)
 
-class ClientThread(QtCore.QThread):
-    """
-        taken from http://doc.qt.nokia.com/4.8-snapshot/network-blockingfortuneclient.html
-    """
-    new_command = QtCore.pyqtSignal(str)
-    error = QtCore.pyqtSignal(int, str)
-
-    def __init__(self, parent=None):
-        super(ClientThread, self).__init__(parent)
-
-        self.quit = False
-        self.hostName = ''
-        self.cond = QtCore.QWaitCondition()
-        self.mutex = QtCore.QMutex()
-        self.port = 0
-
-    def __del__(self):
-        self.mutex.lock()
-        self.quit = True
-        self.cond.wakeOne()
-        self.mutex.unlock()
-        self.wait()
-
-    def request_new_command(self, host_name, port):
-        locker = QtCore.QMutexLocker(self.mutex)
-        self.host_name = host_name
-        self.port = port
-        if not self.isRunning():
-            self.start()
-        else:
-            self.cond.wakeOne()
-
-    def run(self):
-        self.mutex.lock()
-        server_name = self.host_name
-        server_port = self.port
-        self.mutex.unlock()
-
-        while not self.quit:
-            Timeout = 5 * 1000
-
-            socket = QtNetwork.QTcpSocket()
-            socket.connectToHost(server_name, server_port)
-
-            if not socket.waitForConnected(Timeout):
-                self.error.emit(socket.error(), socket.errorString())
-                return
-
-            while socket.bytesAvailable() < 2:
-                if not socket.waitForReadyRead(Timeout):
-                    self.error.emit(socket.error(), socket.errorString())
-                    return
-
-            instr = QtCore.QDataStream(socket)
-            instr.setVersion(QtCore.QDataStream.Qt_4_0)
-            blockSize = instr.readUInt32()
-
-            while socket.bytesAvailable() < blockSize:
-                if not socket.waitForReadyRead(Timeout):
-                    self.error.emit(socket.error(), socket.errorString())
-                    return
-
-            self.mutex.lock()
-            message = instr.readString()
-
-            try:
-                # Python v3.
-                fortune = str(message, encoding='ascii')
-            except TypeError:
-                # Python v2.
-                pass
-
-            self.new_command.emit(message)
-
-            self.cond.wait(self.mutex)
-            server_name = self.host_name
-            server_port = self.port
-            self.mutex.unlock()
-
-
 class Server(QtCore.QObject):
     port = server_port
+    debug_output = QtCore.pyqtSignal(str)
 
-    def __init__(self):
-        QtCore.QObject.__init__(self)
-        self.id = str(uuid.uuid1())
+    def __init__(self, parent=None):
+        QtCore.QObject.__init__(self, parent)
+        #self.id = str(uuid.uuid1())
+        self.id = "1" # for testing purposes
         self.setup_socket()
         self.tcp_server = QtNetwork.QTcpServer(self)
-        self.port = Server.port+600
+        self.port = Server.port+1
+        self.channels = {} # mapping from channel_id to a list of (client_id, tcp_socket)
+        self.lobby_users = {}
         Server.port += 1
         self.send_server_option()
 
@@ -236,29 +179,44 @@ class Server(QtCore.QObject):
 
 
     def _handle_connection(self):
-        block = QtCore.QByteArray()
-        out = QtCore.QDataStream(block, QtCore.QIODevice.WriteOnly)
-        out.setVersion(QtCore.QDataStream.Qt_4_0)
-        out.writeUInt32(0)
-        message = "SAY Hello this is a simple server message"
-
-        try:
-            # Python v3.
-            message = bytes(fortune, encoding='ascii')
-        except:
-            # Python v2.
-            pass
-
-        out.writeString(message)
-        out.device().seek(0)
-        out.writeUInt32(block.size()-4)
-
+        log.debug("Server handling connection")
         clientConnection = self.tcp_server.nextPendingConnection()
         clientConnection.disconnected.connect(clientConnection.deleteLater)
+        if not clientConnection.waitForConnected(1000):
+            log.error((clientConnection.error(), clientConnection.errorString()))
+            return
+        clientConnection.readyRead.connect(partial(self.read_incoming_socket, clientConnection))
+        clientConnection.waitForReadyRead(1000)
 
-        clientConnection.write(block)
-        clientConnection.disconnectFromHost()
+    def read_incoming_socket(self, clientConnection):
+        data = str(clientConnection.readAll())
+        clientConnection.flush()
+        clientConnection.write(self.handle_data(data, clientConnection))
+        clientConnection.waitForBytesWritten(3000)
+        clientConnection.disconnected.connect(clientConnection.deleteLater)
 
+    def handle_data(self, command, socket):
+        address = socket.peerAddress()
+        port = socket.peerPort()
+        log.debug(("adress and port of client", address.toString(), port))
+        data = InstantSoupData.command.parse(command)
+        if data.startswith("SAY"):
+            message = " ".join(data.split()[1:])
+            return message
+        elif data.startswith("JOIN"):
+            channel_name = data.split()[1]
+            log.debug(("user ", self.lobby_users[address], "is opening a channel with name", channel_name))
+            try:
+                self.channels[channel_name].add((self.lobby_users[address][0], socket))
+                log.error("channel already exists")
+            except KeyError:
+                log.debug("creating channel %s" % channel_name)
+                self.channels[channel_name] = set()
+                self.channels[channel_name].add((self.lobby_users[address][0], socket))
+            return channel_name
+        elif data.startswith("EXIT"):
+            pass
+        return data
 
     def send_server_option(self):
         data = InstantSoupData.peerPDU.build(Container(ID=self.id,
@@ -271,15 +229,15 @@ class Server(QtCore.QObject):
 
     def _process_pending_datagrams(self):
         while self.udp_socket.hasPendingDatagrams():
-            datagram, host, port = self.udp_socket.readDatagram(self.udp_socket.pendingDatagramSize())
-            #print self, "received datagram", datagram
+            datagram, address, port = self.udp_socket.readDatagram(self.udp_socket.pendingDatagramSize())
             packet = InstantSoupData.peerPDU.parse(datagram)
             if packet["ID"] != self.id:
                 for option in packet["Option"]:
                     if option["OptionID"] == "CLIENT_NICK_OPTION":
                         # new client found or client nick was changed
-                        # TODO only send server option when a new client is seen
-                        self.send_server_option()
+                        if not self.lobby_users.has_key(address):
+                            self.lobby_users[address] = (packet["ID"], option["OptionData"])
+                            self.send_server_option()
 
     def setup_socket(self):
         self.udp_socket = QtNetwork.QUdpSocket(self)
