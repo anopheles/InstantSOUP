@@ -218,7 +218,7 @@ class Server(QtCore.QObject):
             try:
                 author_id, channel_name = self._search_channel(socket)
                 for client_id, socket in self.channels[channel_name]:
-                    socket.write(InstantSoupData.command.build("SAY\x00%s\x00%s\x00" % (client_id, message)))
+                    socket.write(InstantSoupData.command.build("SAY\x00%s\x00%s\x00" % (author_id, message)))
                     socket.waitForBytesWritten(3000)
             except ValueError:
                 log.error("socket was not found, make sure the socket is associated with a channel. use the join command")
