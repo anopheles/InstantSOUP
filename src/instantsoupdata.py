@@ -78,18 +78,25 @@ class Client(QtCore.QObject):
         self.new_server.connect(self.send_client_nick)
 
     def join_channel(self, channel_name, server_id):
-        self.send_command_to_server("JOIN %s" % channel_name)
+        self.send_command_to_server("JOIN\x00%s" % channel_name)
 
     def say(self, text, channel_name, server_id):
-        self.send_command_to_server("SAY %s" % text)
+        self.send_command_to_server("SAY\x00%s" % text)
 
     def standby(self, peer_id, channel_name, server_id):
-        self.send_command_to_server("STANDBY %s" % peer_id)
+        self.send_command_to_server("STANDBY\x00%s" % peer_id)
 
     def exit(self, channel_name, server_id):
         self.send_command_to_server("EXIT")
 
+    def _read_tcp_socket(self, socket):
+        response = socket.readAll()
+        self.message_received.emit(str(response))
+
     def send_command_to_server(self, command, server_id="1", channel=None):
+        if not self.servers.has_key((server_id, None)):
+            log.error("trying to connect to server %s which doesn't exist or hasn't yet been recognized" % server_id)
+            return
         try:
             (address, port, socket) = self.servers[(server_id, channel)]
             socket.connectToHost(address, port) # checking socket.state doesn't seem to work
@@ -98,14 +105,12 @@ class Client(QtCore.QObject):
             address, port, _ = self.servers[(server_id, None)]
             socket = QtNetwork.QTcpSocket()
             socket.connectToHost(address, port)
+            socket.readyRead.connect(partial(self._read_tcp_socket, socket))
             self.servers[(server_id, channel)] = (address, port, socket)
 
         if socket.waitForConnected(5000):
             socket.write(InstantSoupData.command.build(command))
             socket.waitForBytesWritten(1000)
-            socket.waitForReadyRead(1000)
-            response = socket.readAll()
-            self.message_received.emit(str(response))
         else:
             log.error((socket.error(), socket.errorString()))
 
@@ -145,6 +150,7 @@ class Client(QtCore.QObject):
                     if option["OptionID"] == "SERVER_OPTION":
                         # add new server
                         socket = QtNetwork.QTcpSocket()
+                        socket.readyRead.connect(partial(self._read_tcp_socket, socket))
                         self.servers[(packet["ID"], None)] = (address, option["OptionData"]["Port"], socket)
                         self.new_server.emit()
             log.debug(self)
@@ -191,9 +197,15 @@ class Server(QtCore.QObject):
     def read_incoming_socket(self, clientConnection):
         data = str(clientConnection.readAll())
         clientConnection.flush()
-        clientConnection.write(self.handle_data(data, clientConnection))
-        clientConnection.waitForBytesWritten(3000)
+        self.handle_data(data, clientConnection)
         clientConnection.disconnected.connect(clientConnection.deleteLater)
+
+    def _search_channel(self, socket):
+        for channel_name, iterable in self.channels.items():
+                for client_id, client_socket in iterable:
+                    if client_socket == socket:
+                        return client_id, channel_name
+        return []
 
     def handle_data(self, command, socket):
         address = socket.peerAddress()
@@ -201,11 +213,18 @@ class Server(QtCore.QObject):
         log.debug(("adress and port of client", address.toString(), port))
         data = InstantSoupData.command.parse(command)
         if data.startswith("SAY"):
-            message = " ".join(data.split()[1:])
-            return message
+            # send message to all connected peers in channel
+            message = " ".join(data.split("\x00")[1:])
+            try:
+                author_id, channel_name = self._search_channel(socket)
+                for client_id, socket in self.channels[channel_name]:
+                    socket.write(InstantSoupData.command.build("SAY\x00%s\x00%s\x00" % (client_id, message)))
+                    socket.waitForBytesWritten(3000)
+            except ValueError:
+                log.error("socket was not found, make sure the socket is associated with a channel. use the join command")
         elif data.startswith("JOIN"):
-            channel_name = data.split()[1]
-            log.debug(("user ", self.lobby_users[address], "is opening a channel with name", channel_name))
+            channel_name = data.split("\x00")[1]
+            log.debug(("user ", self.lobby_users[address], "is opening/joining a channel with name", channel_name))
             try:
                 self.channels[channel_name].add((self.lobby_users[address][0], socket))
                 log.error("channel already exists")
