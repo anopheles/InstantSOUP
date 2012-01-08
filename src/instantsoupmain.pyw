@@ -33,8 +33,12 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
+        self.init_server()
         self.init_client()
         self.init_ui()
+
+    def init_server(self):
+        self.server = Server(parent=self)
 
     def init_client(self):
         self.client = Client(parent=self)
@@ -90,9 +94,7 @@ class MainWindow(QtGui.QMainWindow):
             msg_box.setText('Please enter a channel name!')
             msg_box.exec_()
         else:
-
-            # start new server (every channel is a server)
-            start_new_thread(Server, (None, channel))
+            self.client.join_channel(channel, self.server.id)
 
     def add_channel_to_tab(self, channel):
         tab_channel = uic.loadUi("gui/ChannelWidget.ui")

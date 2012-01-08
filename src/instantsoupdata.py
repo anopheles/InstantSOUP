@@ -8,7 +8,7 @@ import time
 from construct import Container, Enum, PrefixedArray, Struct, ULInt32, ULInt16, ULInt8, OptionalGreedyRange, PascalString, CString, Switch
 from PyQt4 import QtCore, QtNetwork
 from functools import partial
-from threading import Lock, Timer
+from threading import Timer
 
 log = logging.getLogger("instantsoup")
 log.setLevel(logging.DEBUG)
@@ -16,7 +16,6 @@ log.setLevel(logging.DEBUG)
 group_address = QtNetwork.QHostAddress("239.255.99.63")
 broadcast_port = 55555
 server_start_port = 49152
-lock = Lock()
 
 class InstantSoupData(object):
 
@@ -85,13 +84,14 @@ class Client(QtCore.QObject):
 
         self.send_client_nick()
 
-        # setup the timer for the regular pdu
-        timer = Timer(15.0, self.send_regular_pdu)
-        timer.start()
+        # setup the regular_pdu_timer for the regular pdu
+        self.regular_pdu_timer = QtCore.QTimer()
+        self.regular_pdu_timer.timeout.connect(self.send_regular_pdu)
+        self.regular_pdu_timer.start(15000)
 
         self.peer_id = 0
 
-    def join_channel(self, channel_name, server_id=None):
+    def join_channel(self, channel_name, server_id):
         self.send_command_to_server("JOIN\x00%s" % channel_name, server_id)
 
     def say(self, text, channel_name, server_id):
@@ -201,7 +201,7 @@ class Client(QtCore.QObject):
 class Server(QtCore.QObject):
     debug_output = QtCore.pyqtSignal(str)
 
-    def __init__(self, parent=None, channel=None):
+    def __init__(self, parent=None):
         global server_start_port
 
         QtCore.QObject.__init__(self, parent)
@@ -209,10 +209,8 @@ class Server(QtCore.QObject):
         # Create a channel with a unique id
         self.id = str(uuid.uuid1())
 
-        lock.acquire()
         self.port = server_start_port
         server_start_port += 1
-        lock.release()
 
         self.setup_socket()
         self.tcp_server = QtNetwork.QTcpServer(self)
@@ -220,10 +218,6 @@ class Server(QtCore.QObject):
         # mapping from channel_id to a list of (client_id, tcp_socket)
         self.channels = {}
         self.lobby_users = {}
-
-        # prepare the channel
-        if channel != None:
-            self.channels[channel] = set()
 
         if not self.tcp_server.listen(QtNetwork.QHostAddress.Any, self.port):
             log.error("Unable to start the server: %s." % self.tcp_server.errorString())
@@ -234,9 +228,10 @@ class Server(QtCore.QObject):
 
         self.pdu_number = -1
 
-        while(True):
-            time.sleep(2)
-            self.send_regular_pdu()
+        # setup the regular_pdu_timer for the regular pdu
+        self.regular_pdu_timer = QtCore.QTimer()
+        self.regular_pdu_timer.timeout.connect(self.send_regular_pdu)
+        self.regular_pdu_timer.start(15000)
 
     def handle_connection(self):
         log.debug("Server handling connection")

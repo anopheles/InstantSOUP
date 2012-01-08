@@ -27,11 +27,11 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0" colspan="3">
-       <widget class="QListWidget" name="usersList"/>
-      </item>
       <item row="4" column="1" colspan="2">
        <widget class="QLineEdit" name="nicknameEdit"/>
+      </item>
+      <item row="3" column="0" colspan="3">
+       <widget class="QListWidget" name="usersList"/>
       </item>
      </layout>
     </widget>
@@ -56,6 +56,9 @@
         </property>
        </widget>
       </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="newChannelEdit"/>
+      </item>
       <item row="0" column="0" colspan="4">
        <widget class="QListWidget" name="channelsList">
         <property name="sizePolicy">
@@ -68,9 +71,6 @@
          <enum>QListView::Fixed</enum>
         </property>
        </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLineEdit" name="newChannelEdit"/>
       </item>
      </layout>
      <zorder>newChannelButton</zorder>
