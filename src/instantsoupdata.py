@@ -5,10 +5,9 @@ import logging
 import uuid
 import time
 
-from construct import Container, Enum, PrefixedArray, Struct, ULInt32, ULInt16, ULInt8, OptionalGreedyRange, PascalString, CString, Switch
+from construct import Container, Enum, PrefixedArray, Struct, ULInt32, ULInt16, ULInt8, OptionalGreedyRange, PascalString, CString, Switch, GreedyRange
 from PyQt4 import QtCore, QtNetwork
 from functools import partial
-from threading import Timer
 
 log = logging.getLogger("instantsoup")
 log.setLevel(logging.DEBUG)
@@ -17,9 +16,12 @@ group_address = QtNetwork.QHostAddress("239.255.99.63")
 broadcast_port = 55555
 server_start_port = 49152
 
+
 class InstantSoupData(object):
 
-    ClientMemberShipOption = PrefixedArray(Struct("Server",
+    ClientNickOption = CString('Nickname')
+
+    ClientMembershipOption = PrefixedArray(Struct("Server",
                                                   CString("ServerID"),
                                                   PrefixedArray(CString('Channels'),
                                                                 ULInt8("NumChannels"))
@@ -31,6 +33,13 @@ class InstantSoupData(object):
                                 PrefixedArray(CString("ClientID"),
                                               ULInt8("NumClients")))
 
+    ServerChannelOption = Struct("ServerChannelsOption",
+                                 ULInt8("NumChannels"),
+                                 GreedyRange(CString("Channels")))
+
+    ServerOption = Struct("ServerOption",
+                          ULInt16("Port"))
+
     Option = Struct("Option",
                     Enum(ULInt8("OptionID"),
                          CLIENT_NICK_OPTION = 0x01,
@@ -41,18 +50,18 @@ class InstantSoupData(object):
                     Switch("OptionData",
                            lambda ctx: ctx["OptionID"],
                            {
-                                "CLIENT_NICK_OPTION" : CString('Nickname'),
-                                "CLIENT_MEMBERSHIP_OPTION" : ClientMemberShipOption,
-                                "SERVER_OPTION" : Struct("ServerOption", ULInt16("Port")),
-                                "SERVER_CHANNELS_OPTION" : Struct("ServerChannelsOption", CString("Channels"), ULInt8("NumChannels")),
-                                "SERVER_INVITE_OPTION" : ServerInviteOption
+                                "CLIENT_NICK_OPTION": ClientNickOption,
+                                "CLIENT_MEMBERSHIP_OPTION": ClientMembershipOption,
+                                "SERVER_OPTION": ServerOption,
+                                "SERVER_CHANNELS_OPTION": ServerChannelOption,
+                                "SERVER_INVITE_OPTION": ServerInviteOption
                            }))
 
     peerPDU = Struct("peerPDU",
                      CString('ID'),
                      OptionalGreedyRange(Option))
 
-    command = PascalString("command", length_field=ULInt32("length"))
+    command = PascalString("command", length_field = ULInt32("length"))
 
 
 class Client(QtCore.QObject):
@@ -69,7 +78,7 @@ class Client(QtCore.QObject):
     # emitted a client received a message from a server, for testing purposes
     message_received = QtCore.pyqtSignal(str)
 
-    def __init__(self, nickname="Telematik", parent=None):
+    def __init__(self, nickname = "Telematik", parent = None):
         QtCore.QObject.__init__(self, parent)
 
         self.id = str(uuid.uuid1())
@@ -108,7 +117,7 @@ class Client(QtCore.QObject):
         response = socket.readAll()
         self.message_received.emit(str(response))
 
-    def send_command_to_server(self, command, server_id="1", channel=None):
+    def send_command_to_server(self, command, server_id = "1", channel = None):
         if (server_id, channel) not in self.servers:
             log.error("trying to connect to server %s which doesn't exist or hasn't yet been recognized" % server_id)
             return
@@ -132,8 +141,8 @@ class Client(QtCore.QObject):
         self.udp_socket.readyRead.connect(self.process_pending_datagrams)
 
     def send_client_nick(self):
-        data = InstantSoupData.peerPDU.build(Container(ID=self.id,
-                                                       Option=[Container(OptionID="CLIENT_NICK_OPTION", OptionData=self.nickname)])
+        data = InstantSoupData.peerPDU.build(Container(ID = self.id,
+                                                       Option = [Container(OptionID = "CLIENT_NICK_OPTION", OptionData = self.nickname)])
                                             )
         self._send_datagram(data)
 
@@ -160,29 +169,30 @@ class Client(QtCore.QObject):
                     if (packet["ID"], None) not in self.servers:
                         # add new server
                         port = option["OptionData"]["Port"]
-    
+
                         try:
                             socket = self.create_new_socket(address, port)
                             self.servers[(packet["ID"], None)] = (address, port, socket)
-    
+
                             # signal: we have a new server!
                             self.new_server.emit()
                         except Exception as error:
                             print error
                 elif option["OptionID"] == "SERVER_CHANNELS_OPTION":
-                    channel = option["OptionData"]["Channels"]
-                    if (packet["ID"], channel) not in self.servers:
-                        try:
-                            (address, port, _) = self.servers[(packet["ID"], None)]
-                            socket = self.create_new_socket(address, port)
-                            self.servers[(packet["ID"], channel)] = (address, port, socket)
-    
-                            # signal: we have a new server!
-                            self.new_server.emit()
-                        except Exception as error:
-                            print error
+                    channels = option["OptionData"]["Channels"]
+                    for channel in channels:
+                        if (packet["ID"], channel) not in self.servers:
+                            try:
+                                (address, port, _) = self.servers[(packet["ID"], None)]
+                                socket = self.create_new_socket(address, port)
+                                self.servers[(packet["ID"], channel)] = (address, port, socket)
 
-            log.debug(self)
+                                # signal: we have a new server!
+                                self.new_server.emit()
+                            except Exception as error:
+                                print error
+
+            #log.debug(self)
 
     def create_new_socket(self, address, port):
         socket = QtNetwork.QTcpSocket()
@@ -208,7 +218,7 @@ class Client(QtCore.QObject):
 class Server(QtCore.QObject):
     debug_output = QtCore.pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent = None):
         global server_start_port
 
         QtCore.QObject.__init__(self, parent)
@@ -308,9 +318,15 @@ class Server(QtCore.QObject):
     def send_server_option(self):
 
         # define the data to send & send
-        data = InstantSoupData.peerPDU.build(Container(ID=self.id,
-                                                       Option=[Container(OptionID="SERVER_OPTION", OptionData=Container(Port=self.port))])
-                                            )
+        option_data = Container(Port=self.port)
+
+        option = Container(OptionID="SERVER_OPTION",
+                   OptionData=option_data)
+
+        pdu = Container(ID=self.id,
+                Option={option})
+
+        data = InstantSoupData.peerPDU.build(pdu)
         self.send_datagram(data)
 
         log.debug('PDU: SERVER_OPTION - ID: %i - SENT' % self.pdu_number)
@@ -323,17 +339,24 @@ class Server(QtCore.QObject):
         number_of_channels = len(self.channels)
 
         if number_of_channels > 0:
-            list_of_channel = str(self.channels.keys()[0])
 
             # define the data to send & send
-            data = InstantSoupData.peerPDU.build(Container(ID=self.id,
-                                                           Option=[Container(OptionID="SERVER_CHANNELS_OPTION",
-                                                                             OptionData=Container(Channels=list_of_channel,
-                                                                                                  NumChannels=number_of_channels))])
-                                                )
+            list_of_channel = self.channels.keys()
+
+            option_data = Container(NumChannels=number_of_channels,
+                            Channels=list_of_channel)
+
+            option = Container(OptionID="SERVER_CHANNELS_OPTION",
+                       OptionData=option_data)
+
+            pdu = Container(ID=self.id,
+                    Option={option})
+
+            data = InstantSoupData.peerPDU.build(pdu)
             self.send_datagram(data)
 
-            log.debug('PDU: SERVER_CHANNELS_OPTION - ID: %i - SENT' % self.pdu_number)
+            log.debug('PDU: SERVER_CHANNELS_OPTION - ID: %i - SENT' %
+                      self.pdu_number)
 
     def send_datagram(self, datagram):
         self.udp_socket.writeDatagram(datagram, group_address, broadcast_port)
