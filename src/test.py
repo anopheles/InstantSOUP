@@ -39,7 +39,7 @@ class MainWindow(QtGui.QMainWindow):
         client.message_received.connect(lambda msg : client_window.append(msg))
 
 if __name__ == '__main__':
-    p = subprocess.Popen(r"C:\Python27\python.exe test_server.py") # TODO
+    p = subprocess.Popen(r"C:\Program Files (x86)\Python27\python.exe test_server.py") # TODO
     app = QtGui.QApplication(sys.argv)
     main = MainWindow()
     main.show()
