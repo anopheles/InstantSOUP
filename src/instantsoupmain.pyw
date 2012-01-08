@@ -73,7 +73,8 @@ class MainWindow(QtGui.QMainWindow):
 
         self.tab_lobby.newChannelButton.clicked.connect(self.create_channel)
 
-        self.client.new_server.connect(lambda : self.update_list())
+        self.client.new_server.connect(lambda: self.update_channel_list())
+        self.client.new_client.connect(lambda: self.update_user_list())
 
     def update_nickname(self):
 
@@ -108,13 +109,26 @@ class MainWindow(QtGui.QMainWindow):
     def add_user_to_list(self, user):
         self.tab_lobby.usersList.addItem(user)
 
-    def update_list(self):
+    def update_channel_list(self):
         self.tab_lobby.channelsList.clear()
 
         for (key, value) in self.client.servers:
             if value != None:
-                self.add_channel_to_list(value)
+                (address, port, _) = self.client.servers[(key, value)]
+                item = QtGui.QListWidgetItem()
+                item_text = (value +
+                             ' (' + address.toString() + ':' + str(port) + ')')
+                item.setText(item_text)
+                self.add_channel_to_list(item)
 
+    def update_user_list(self):
+        self.tab_lobby.usersList.clear()
+
+        for key in self.client.lobby_users:
+            value = self.client.lobby_users[key]
+            item = QtGui.QListWidgetItem()
+            item.setText(value)
+            self.add_user_to_list(item)
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)

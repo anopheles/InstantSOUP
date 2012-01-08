@@ -71,8 +71,11 @@ class Client(QtCore.QObject):
 
     def __init__(self, nickname="Telematik", parent=None):
         QtCore.QObject.__init__(self, parent)
-        self.nickname = nickname
+
         self.id = str(uuid.uuid1())
+        self.nickname = nickname
+        self.pdu_number = 0
+
         self.setup_socket()
 
         # mapping from client.id to nickname
@@ -88,8 +91,6 @@ class Client(QtCore.QObject):
         self.regular_pdu_timer = QtCore.QTimer()
         self.regular_pdu_timer.timeout.connect(self.send_regular_pdu)
         self.regular_pdu_timer.start(15000)
-
-        self.peer_id = 0
 
     def join_channel(self, channel_name, server_id):
         self.send_command_to_server("JOIN\x00%s" % channel_name, server_id)
@@ -118,8 +119,11 @@ class Client(QtCore.QObject):
         socket.waitForBytesWritten(1000)
 
     def send_regular_pdu(self):
-        self.peer_id += 1
-        log.debug("sending regular id:" + str(self.peer_id))
+
+        # send nickname
+        self.send_client_nick()
+
+        self.pdu_number += 1
 
     def setup_socket(self):
         self.udp_socket = QtNetwork.QUdpSocket(self)
@@ -133,12 +137,15 @@ class Client(QtCore.QObject):
                                             )
         self._send_datagram(data)
 
+        log.debug('PDU: CLIENT_NICK_OPTION - ID: %i - SENT' % self.pdu_number)
+
     def process_pending_datagrams(self):
         while self.udp_socket.hasPendingDatagrams():
             data, address, port = self.udp_socket.readDatagram(self.udp_socket.pendingDatagramSize())
             packet = InstantSoupData.peerPDU.parse(data)
             for option in packet["Option"]:
                 if option["OptionID"] == "CLIENT_NICK_OPTION":
+
                     # new client found or client nick was changed
                     if packet["ID"] in self.lobby_users:
                         # user already exists
@@ -147,33 +154,33 @@ class Client(QtCore.QObject):
                             self.client_nick_change.emit()
                     else:
                         # add new client
+                        self.lobby_users[packet["ID"]] = option["OptionData"]
                         self.new_client.emit()
-                    self.lobby_users[packet["ID"]] = option["OptionData"]
                 elif option["OptionID"] == "SERVER_OPTION":
-                    # add new server
-                    port = option["OptionData"]["Port"]
-
-                    try:
-                        socket = self.create_new_socket(address, port)
-                        self.servers[(packet["ID"], None)] = (address, port, socket)
-
-                        # signal: we have a new server!
-                        self.new_server.emit()
-                    except Exception as error:
-                        print error
+                    if (packet["ID"], None) not in self.servers:
+                        # add new server
+                        port = option["OptionData"]["Port"]
+    
+                        try:
+                            socket = self.create_new_socket(address, port)
+                            self.servers[(packet["ID"], None)] = (address, port, socket)
+    
+                            # signal: we have a new server!
+                            self.new_server.emit()
+                        except Exception as error:
+                            print error
                 elif option["OptionID"] == "SERVER_CHANNELS_OPTION":
-                    # add new server
                     channel = option["OptionData"]["Channels"]
-
-                    try:
-                        (address, port, _) = self.servers[(packet["ID"], None)]
-                        socket = self.create_new_socket(address, port)
-                        self.servers[(packet["ID"], channel)] = (address, port, socket)
-
-                        # signal: we have a new server!
-                        self.new_server.emit()
-                    except Exception as error:
-                        print error
+                    if (packet["ID"], channel) not in self.servers:
+                        try:
+                            (address, port, _) = self.servers[(packet["ID"], None)]
+                            socket = self.create_new_socket(address, port)
+                            self.servers[(packet["ID"], channel)] = (address, port, socket)
+    
+                            # signal: we have a new server!
+                            self.new_server.emit()
+                        except Exception as error:
+                            print error
 
             log.debug(self)
 
@@ -208,8 +215,8 @@ class Server(QtCore.QObject):
 
         # Create a channel with a unique id
         self.id = str(uuid.uuid1())
-
         self.port = server_start_port
+        self.pdu_number = 0
         server_start_port += 1
 
         self.setup_socket()
@@ -225,8 +232,6 @@ class Server(QtCore.QObject):
         # Hint: IP: 0.0.0.0 means ANY
         log.debug("Server is running with address %s and port %s" % (self.tcp_server.serverAddress().toString(), self.tcp_server.serverPort()))
         self.tcp_server.newConnection.connect(self.handle_connection)
-
-        self.pdu_number = -1
 
         # setup the regular_pdu_timer for the regular pdu
         self.regular_pdu_timer = QtCore.QTimer()
