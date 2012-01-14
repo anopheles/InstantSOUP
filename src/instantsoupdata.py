@@ -270,7 +270,10 @@ class Server(QtCore.QObject):
         self.setup_socket()
         self.tcp_server = QtNetwork.QTcpServer(self)
 
+        # mapping from channel_id to a list of (client_id, tcp_socket)
         self.channels = {}
+
+        # mapping from address to a (client_id, nickname)
         self.lobby_users = {}
 
         if not self.tcp_server.listen(QtNetwork.QHostAddress.Any, self.port):
