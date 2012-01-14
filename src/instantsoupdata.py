@@ -129,8 +129,13 @@ class Client(QtCore.QObject):
         self.send_command_to_server("EXIT", channel_name, server_id)
 
     def read_tcp_socket(self, socket):
-        response = socket.readAll()
-        self.message_received.emit(str(response))
+        data = socket.readAll()
+        peer_pdu = InstantSoupData.peer_pdu.parse(data)
+        uid = peer_pdu["id"]
+        for option in peer_pdu["option"]:
+            if option["option_id"] == "SERVER_INVITE_OPTION":
+                #TODO handle server invite option here
+                pass
 
     def send_command_to_server(self, command, server_id, channel=None):
         if (server_id, channel) not in self.servers:
@@ -180,8 +185,8 @@ class Client(QtCore.QObject):
         while self.udp_socket.hasPendingDatagrams():
             data, address, port = self.udp_socket.readDatagram(maxlen)
             packet = InstantSoupData.peer_pdu.parse(data)
+            uid = packet["id"]
             for option in packet["option"]:
-                uid = packet["id"]
 
                 if option["option_id"] == "CLIENT_NICK_OPTION":
 
@@ -265,7 +270,6 @@ class Server(QtCore.QObject):
         self.setup_socket()
         self.tcp_server = QtNetwork.QTcpServer(self)
 
-        # mapping from channel_id to a list of (client_id, tcp_socket)
         self.channels = {}
         self.lobby_users = {}
 
@@ -321,7 +325,6 @@ class Server(QtCore.QObject):
 
         data = InstantSoupData.command.parse(command)
         if data.startswith("SAY"):
-
             # send message to all connected peers in channel
             message = " ".join(data.split("\x00")[1:])
 
@@ -330,7 +333,6 @@ class Server(QtCore.QObject):
                 for (_, socket) in self.channels[channel_name]:
                     command = "SAY\x00%s\x00%s\x00" % (author_id, message)
                     data = InstantSoupData.command.build(command)
-
                     socket.write(data)
                     socket.waitForBytesWritten(3000)
             except ValueError:
@@ -344,15 +346,32 @@ class Server(QtCore.QObject):
                 self.channels[channel_name].add((self.lobby_users[address][0], socket))
                 log.debug("channel already exists")
             except KeyError:
+                private = channel_name.startswith("@")
                 log.debug("creating channel %s" % channel_name)
                 self.channels[channel_name] = set()
                 self.channels[channel_name].add((self.lobby_users[address][0], socket))
-                self.send_server_channel_option()
+                if not private:
+                    self.send_server_channel_option()
+                else:
+                    self.send_server_invite_option([self.lobby_users[address][0]], channel_name)
 
         elif data.startswith("EXIT"):
             pass
 
         return data
+
+    def send_server_invite_option(self, invite_client_ids, channel_id):
+        # for each client_id find the socket on which to send the server_invite option
+        for invite_client_id in invite_client_ids:
+            for channel_id, client_sockets in self.channels.items():
+                for (client_id, socket) in client_sockets:
+                    if invite_client_id == client_id:
+                        option = Container(option_id="SERVER_INVITE_OPTION",
+                                           option_data = Container(channel_id=channel_id, client_id=invite_client_ids))
+                        pdu = Container(id=self.id, option=[option])
+                        socket.write(InstantSoupData.peer_pdu.build(pdu))
+                        socket.waitForBytesWritten()
+        log.debug('PDU: SERVER_INVITE_OPTION - id: %i - SENT' % self.pdu_number)
 
     def send_regular_pdu(self):
 
@@ -424,8 +443,7 @@ class Server(QtCore.QObject):
 
                         # new client found or client nick was changed
                         if address not in self.lobby_users:
-                            self.lobby_users[address] = (packet["id"],
-                                option["option_data"])
+                            self.lobby_users[address] = (uid, option["option_data"])
                             self.send_server_option()
 
     def setup_socket(self):
