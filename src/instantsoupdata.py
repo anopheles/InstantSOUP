@@ -15,7 +15,7 @@ log.setLevel(logging.DEBUG)
 
 group_address = QtNetwork.QHostAddress("239.255.99.63")
 broadcast_port = 55555
-server_start_port = 49152
+server_start_port = 49190
 
 
 class InstantSoupData(object):
@@ -88,9 +88,9 @@ class Client(QtCore.QObject):
     client_nick_change = QtCore.pyqtSignal()
 
     # emitted when a new server is discovered
-    new_server = QtCore.pyqtSignal()
+    new_server = QtCore.pyqtSignal(str)
 
-    # emitted a client received a message from a server, for testing purposes
+    # emitted when a client received a message from a server, for testing purposes
     message_received = QtCore.pyqtSignal(str)
 
     def __init__(self, nickname="Telematik", parent=None):
@@ -120,22 +120,22 @@ class Client(QtCore.QObject):
         self.send_command_to_server("JOIN\x00%s" % channel_name, server_id)
 
     def say(self, text, channel_name, server_id):
-        self.send_command_to_server("SAY\x00%s" % text)
+        self.send_command_to_server("SAY\x00%s" % text, channel_name, server_id)
 
     def standby(self, peer_id, channel_name, server_id):
-        self.send_command_to_server("STANDBY\x00%s" % peer_id)
+        self.send_command_to_server("STANDBY\x00%s" % peer_id, channel_name, server_id)
 
     def exit(self, channel_name, server_id):
-        self.send_command_to_server("EXIT")
+        self.send_command_to_server("EXIT", channel_name, server_id)
 
     def read_tcp_socket(self, socket):
         response = socket.readAll()
         self.message_received.emit(str(response))
 
-    def send_command_to_server(self, command, server_id="1", channel=None):
+    def send_command_to_server(self, command, server_id, channel=None):
         if (server_id, channel) not in self.servers:
-            log.error("trying to connect to server %s which doesn't exist" +
-                " or hasn't yet been recognized" % server_id)
+            print "server id", server_id
+            log.error("trying to connect to server %s which doesn't exist or hasn't yet been recognized" % server_id)
             return
 
         # we are already connected!
@@ -167,7 +167,7 @@ class Client(QtCore.QObject):
                  )
 
         pdu = Container(id=self.id,
-                  option={option}
+                  option=[option]
               )
 
         data = InstantSoupData.peer_pdu.build(pdu)
@@ -203,9 +203,8 @@ class Client(QtCore.QObject):
                         try:
                             socket = self.create_new_socket(address, port)
                             self.servers[(uid, None)] = (address, port, socket)
-
                             # signal: we have a new server!
-                            self.new_server.emit()
+                            self.new_server.emit(uid)
                         except Exception as error:
                             print error
                 elif option["option_id"] == "SERVER_CHANNELS_OPTION":
@@ -220,7 +219,7 @@ class Client(QtCore.QObject):
                                     socket
                                 )
                                 # signal: we have a new server!
-                                self.new_server.emit()
+                                self.new_server.emit(uid)
                             except Exception as error:
                                 print error
 
@@ -340,20 +339,14 @@ class Server(QtCore.QObject):
 
         elif data.startswith("JOIN"):
             channel_name = data.split("\x00")[1]
-            log.debug(("user ",
-                self.lobby_users[address],
-                "is opening/joining a channel with name",
-                channel_name))
-
+            log.debug("user %s is opening/joining a channel with name %s" % (self.lobby_users[address], channel_name))
             try:
-                self.channels[channel_name].add((self.lobby_users[address][0],
-                    socket))
+                self.channels[channel_name].add((self.lobby_users[address][0], socket))
                 log.debug("channel already exists")
             except KeyError:
                 log.debug("creating channel %s" % channel_name)
                 self.channels[channel_name] = set()
-                self.channels[channel_name].add((self.lobby_users[address][0],
-                    socket))
+                self.channels[channel_name].add((self.lobby_users[address][0], socket))
                 self.send_server_channel_option()
 
         elif data.startswith("EXIT"):
@@ -379,7 +372,7 @@ class Server(QtCore.QObject):
                    option_data=option_data)
 
         pdu = Container(id=self.id,
-                option={option})
+                option=[option])
 
         data = InstantSoupData.peer_pdu.build(pdu)
         self.send_datagram(data)
@@ -405,7 +398,7 @@ class Server(QtCore.QObject):
                        option_data=option_data)
 
             pdu = Container(id=self.id,
-                    option={option})
+                    option=[option])
 
             data = InstantSoupData.peer_pdu.build(pdu)
             self.send_datagram(data)

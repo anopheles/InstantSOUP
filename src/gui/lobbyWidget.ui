@@ -60,16 +60,18 @@
        <widget class="QLineEdit" name="newChannelEdit"/>
       </item>
       <item row="0" column="0" colspan="4">
-       <widget class="QListWidget" name="channelsList">
+       <widget class="QTreeWidget" name="channelsList">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
-        <property name="resizeMode">
-         <enum>QListView::Fixed</enum>
-        </property>
+        <column>
+         <property name="text">
+          <string notr="true">1</string>
+         </property>
+        </column>
        </widget>
       </item>
      </layout>

@@ -16,6 +16,8 @@ import logging
 from PyQt4 import QtCore, QtGui, uic
 from instantsoupdata import InstantSoupData, Client, Server
 from thread import start_new_thread
+from functools import partial
+from collections import defaultdict
 
 # Initialize logger & set logging level
 log = logging.getLogger("instantsoup")
@@ -73,7 +75,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.tab_lobby.newChannelButton.clicked.connect(self.create_channel)
 
-        self.client.new_server.connect(lambda: self.update_channel_list())
+        self.client.new_server.connect(lambda _ : self.update_channel_list())
         self.client.new_client.connect(lambda: self.update_user_list())
 
     def update_nickname(self):
@@ -87,39 +89,49 @@ class MainWindow(QtGui.QMainWindow):
 
     def create_channel(self):
         channel = str(self.tab_lobby.newChannelEdit.text())
+        try:
+            server_id = self.tab_lobby.channelsList.selectedItems()[0].uid
+        except IndexError:
+            server_id = self.server.id
 
         if channel == '':
-
-            # user have to enter a name!
+            # user has to enter a name!
             msg_box = QtGui.QMessageBox()
             msg_box.setText('Please enter a channel name!')
             msg_box.exec_()
         else:
-            self.client.join_channel(channel, self.server.id)
+            self.client.join_channel(channel, server_id)
 
     def add_channel_to_tab(self, channel):
         tab_channel = uic.loadUi("gui/ChannelWidget.ui")
         tab_channel.setObjectName(_fromUtf8("tab_channel"))
-#
-        self.tab_widget.addTab(tab_channel, _fromUtf8(channel))
 
-    def add_channel_to_list(self, channel):
-        self.tab_lobby.channelsList.addItem(channel)
+        self.tab_widget.addTab(tab_channel, _fromUtf8(channel))
 
     def add_user_to_list(self, user):
         self.tab_lobby.usersList.addItem(user)
 
     def update_channel_list(self):
         self.tab_lobby.channelsList.clear()
+        server_channels = defaultdict(list)
+        for (uid, channel_id), (address, port, _)  in self.client.servers.items():
+            server_channels[(uid, address)].append((channel_id, port))
 
-        for (key, value) in self.client.servers:
-            if value != None:
-                (address, port, _) = self.client.servers[(key, value)]
-                item = QtGui.QListWidgetItem()
-                item_text = (value +
-                             ' (' + address.toString() + ':' + str(port) + ')')
-                item.setText(item_text)
-                self.add_channel_to_list(item)
+        for (uid, address), channel_id_list in server_channels.items():
+            # create root server
+            root = QtGui.QTreeWidgetItem(["Server %s" % address.toString()])
+            root.uid = uid
+            self.tab_lobby.channelsList.addTopLevelItem(root)
+
+            # create children
+            for (channel_id, port) in channel_id_list:
+                if channel_id:
+                    item_text = channel_id + ' (' + address.toString() + ':' + str(port) + ')'
+                    item = QtGui.QTreeWidgetItem([item_text])
+                    item.uid = uid
+                    root.addChild(item)
+
+        self.tab_lobby.channelsList.expandAll()
 
     def update_user_list(self):
         self.tab_lobby.usersList.clear()

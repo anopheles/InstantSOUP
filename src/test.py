@@ -26,6 +26,10 @@ class MainWindow(QtGui.QMainWindow):
         central_widget.setLayout(layout)
 
         client_layout = QtGui.QVBoxLayout()
+        server_layout = QtGui.QVBoxLayout()
+
+        server_list = QtGui.QListWidget(self)
+        server_layout.addWidget(server_list)
 
         client_window = QtGui.QTextEdit(self)
         client_command = QtGui.QLineEdit(self)
@@ -35,13 +39,15 @@ class MainWindow(QtGui.QMainWindow):
         client_layout.addWidget(client_command)
 
         layout.addLayout(client_layout)
+        layout.addLayout(server_layout)
 
         client.message_received.connect(lambda msg : client_window.append(msg))
+        client.new_server.connect(lambda uid : server_list.addItem(uid))
 
 if __name__ == '__main__':
-    p = subprocess.Popen(r"C:\Program Files (x86)\Python27\python.exe test_server.py") # TODO
+    #p = subprocess.Popen(r"C:\Python26\python.exe test_server.py") # TODO
     app = QtGui.QApplication(sys.argv)
     main = MainWindow()
     main.show()
     app.exec_()
-    p.terminate()
+    #p.terminate()
