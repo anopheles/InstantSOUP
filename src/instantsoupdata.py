@@ -295,7 +295,7 @@ class Server(QtCore.QObject):
         # mapping from channel_id to a list of (client_id, tcp_socket)
         self.channels = {}
 
-        # mapping from address to a (client_id, nickname)
+        # mapping from address to (client_id, nickname)
         self.lobby_users = {}
 
         if not self.tcp_server.listen(QtNetwork.QHostAddress.Any, self.port):
