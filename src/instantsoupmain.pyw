@@ -74,6 +74,7 @@ class MainWindow(QtGui.QMainWindow):
         self.tab_lobby.nicknameEdit.editingFinished.connect(self.update_nickname)
 
         self.tab_lobby.newChannelButton.clicked.connect(self.create_channel)
+        self.tab_lobby.newChannelEdit.editingFinished.connect(self.create_channel)
 
         self.client.new_server.connect(lambda _ : self.update_channel_list())
         self.client.new_client.connect(lambda: self.update_user_list())
@@ -94,7 +95,7 @@ class MainWindow(QtGui.QMainWindow):
         except IndexError:
             server_id = self.server.id
 
-        if channel == '':
+        if not channel:
             # user has to enter a name!
             msg_box = QtGui.QMessageBox()
             msg_box.setText('Please enter a channel name!')
@@ -123,13 +124,16 @@ class MainWindow(QtGui.QMainWindow):
             root.uid = uid
             self.tab_lobby.channelsList.addTopLevelItem(root)
 
-            # create children
+            # create channels
             for (channel_id, port) in channel_id_list:
                 if channel_id:
-                    item_text = channel_id + ' (' + address.toString() + ':' + str(port) + ')'
-                    item = QtGui.QTreeWidgetItem([item_text])
-                    item.uid = uid
-                    root.addChild(item)
+                    channel_text = channel_id + ' (' + address.toString() + ':' + str(port) + ')'
+                    channel = QtGui.QTreeWidgetItem([channel_text])
+                    channel.uid = uid
+                    root.addChild(channel)
+
+                    #TODO create all users that are in channel
+
 
         self.tab_lobby.channelsList.expandAll()
 

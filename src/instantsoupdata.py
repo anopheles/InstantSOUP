@@ -9,6 +9,7 @@ from construct import ULInt16, ULInt8, OptionalGreedyRange, PascalString
 from construct import CString, Switch, GreedyRange
 from PyQt4 import QtCore, QtNetwork
 from functools import partial
+from collections import defaultdict
 
 log = logging.getLogger("instantsoup")
 log.setLevel(logging.DEBUG)
@@ -43,8 +44,8 @@ class InstantSoupData(object):
                          )
 
     opt_server_channel = Struct("opt_server_channel",
-                             ULInt8("num_channels"),
-                             GreedyRange(CString("channels"))
+                             PrefixedArray(CString("channels"),
+                                 ULInt8("num_channels"))
                          )
 
     opt_server = Struct("opt_server",
@@ -105,8 +106,7 @@ class Client(QtCore.QObject):
         # mapping from client.id to nickname
         self.lobby_users = {}
 
-        # mapping from (server.id, channel) to a tuple containing (address,
-        # port, tcp_socket)
+        # mapping from (server.id, channel) to a tuple containing (address, port, tcp_socket)
         self.servers = {}
 
         self.send_client_nick()
@@ -118,6 +118,7 @@ class Client(QtCore.QObject):
 
     def join_channel(self, channel_name, server_id):
         self.send_command_to_server("JOIN\x00%s" % channel_name, server_id)
+        #self.send_client_membership_option()
 
     def say(self, text, channel_name, server_id):
         self.send_command_to_server("SAY\x00%s" % text, channel_name, server_id)
@@ -180,6 +181,27 @@ class Client(QtCore.QObject):
 
         log.debug('PDU: CLIENT_NICK_OPTION - ID: %i - SENT' % self.pdu_number)
 
+    def send_client_membership_option(self):
+        # mapping from server_id to a list of channel_ids
+        server_channels = defaultdict(list)
+        for (server_id, channel_id) in self.servers.keys():
+            if channel_id:
+                server_channels[server_id].append(channel_id)
+
+        option_data = []
+        for server_id, channels in server_channels.items():
+            option_data.append(Container(server_id=server_id, channels=channels))
+
+        option = Container(option_id="CLIENT_MEMBERSHIP_OPTION",
+                           option_data=option_data)
+
+        pdu = Container(id=self.id, option=[option])
+
+        data = InstantSoupData.peer_pdu.build(pdu)
+        self._send_datagram(data)
+
+        log.debug('PDU: CLIENT_NICK_MEMBERSHIP - ID: %i - SENT' % self.pdu_number)
+
     def process_pending_datagrams(self):
         maxlen = self.udp_socket.pendingDatagramSize()
         while self.udp_socket.hasPendingDatagrams():
@@ -204,7 +226,6 @@ class Client(QtCore.QObject):
                     if (uid, None) not in self.servers:
                         # add new server
                         port = option["option_data"]["port"]
-
                         try:
                             socket = self.create_new_socket(address, port)
                             self.servers[(uid, None)] = (address, port, socket)
@@ -213,6 +234,7 @@ class Client(QtCore.QObject):
                         except Exception as error:
                             print error
                 elif option["option_id"] == "SERVER_CHANNELS_OPTION":
+                    print "got server channels"
                     channels = option["option_data"]["channels"]
                     for channel in channels:
                         if (uid, channel) not in self.servers:
@@ -406,15 +428,9 @@ class Server(QtCore.QObject):
 
     def send_server_channel_option(self):
 
-        number_of_channels = len(self.channels)
-
-        if number_of_channels > 0:
-
+        if self.channels:
             # define the data to send & send
-            list_of_channel = self.channels.keys()
-
-            option_data = Container(num_channels=number_of_channels,
-                            channels=list_of_channel)
+            option_data = Container(channels=self.channels.keys())
 
             option = Container(option_id="SERVER_CHANNELS_OPTION",
                        option_data=option_data)
