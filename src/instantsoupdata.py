@@ -91,6 +91,9 @@ class Client(QtCore.QObject):
     # emitted when a new server is discovered
     new_server = QtCore.pyqtSignal(str)
 
+    # emitted when a other client joins or leaves a channel
+    client_membership_changed = QtCore.pyqtSignal()
+
     # emitted when a client received a message from a server, for testing purposes
     message_received = QtCore.pyqtSignal(str)
 
@@ -106,8 +109,12 @@ class Client(QtCore.QObject):
         # mapping from client.id to nickname
         self.lobby_users = {}
 
-        # mapping from (server.id, channel) to a tuple containing (address, port, tcp_socket)
+        # mapping from (server_id, channel) to a tuple containing (address, port, tcp_socket)
         self.servers = {}
+
+        # mapping from server_id to channel_id to a list of client_ids
+        # stores the membership of OTHER peers
+        self.channel_membership = defaultdict(lambda : defaultdict(set))
 
         self.send_client_nick()
 
@@ -189,7 +196,7 @@ class Client(QtCore.QObject):
 
         if new_channel:
             server_id, channel_id = new_channel
-            server_channels[server_id] = channel_id
+            server_channels[server_id].append(channel_id)
 
         option_data = []
         for server_id, channels in server_channels.items():
@@ -210,47 +217,55 @@ class Client(QtCore.QObject):
         while self.udp_socket.hasPendingDatagrams():
             data, address, port = self.udp_socket.readDatagram(maxlen)
             packet = InstantSoupData.peer_pdu.parse(data)
-            uid = packet["id"]
+            peer_uid = packet["id"]
             for option in packet["option"]:
 
                 if option["option_id"] == "CLIENT_NICK_OPTION":
 
                     # new client found or client nick was changed
-                    if uid in self.lobby_users:
+                    if peer_uid in self.lobby_users:
                         # user already exists
-                        if self.lobby_users[uid] != option["option_data"]:
+                        if self.lobby_users[peer_uid] != option["option_data"]:
                             # client nick was changed
                             self.client_nick_change.emit()
                     else:
                         # add new client
-                        self.lobby_users[uid] = option["option_data"]
+                        self.lobby_users[peer_uid] = option["option_data"]
                         self.new_client.emit()
                 elif option["option_id"] == "SERVER_OPTION":
-                    if (uid, None) not in self.servers:
+                    if (peer_uid, None) not in self.servers:
                         # add new server
                         port = option["option_data"]["port"]
                         try:
                             socket = self.create_new_socket(address, port)
-                            self.servers[(uid, None)] = (address, port, socket)
+                            self.servers[(peer_uid, None)] = (address, port, socket)
                             # signal: we have a new server!
-                            self.new_server.emit(uid)
+                            self.new_server.emit(peer_uid)
                         except Exception as error:
                             print error
                 elif option["option_id"] == "SERVER_CHANNELS_OPTION":
                     channels = option["option_data"]["channels"]
                     for channel in channels:
-                        if (uid, channel) not in self.servers:
+                        if (peer_uid, channel) not in self.servers:
                             try:
-                                (address, port, _) = self.servers[(uid, None)]
+                                (address, port, _) = self.servers[(peer_uid, None)]
                                 socket = self.create_new_socket(address, port)
-                                self.servers[(uid, channel)] = (address,
+                                self.servers[(peer_uid, channel)] = (address,
                                     port,
                                     socket
                                 )
                                 # signal: we have a new server!
-                                self.new_server.emit(uid)
+                                self.new_server.emit(peer_uid)
                             except Exception as error:
                                 print error
+                elif option["option_id"] == "CLIENT_MEMBERSHIP_OPTION":
+                    servers = option["option_data"]
+                    for server_container in servers:
+                        server_id = server_container["server_id"]
+                        channels = server_container["channels"]
+                        for channel in channels:
+                            self.channel_membership[server_id][channel].add(peer_uid)
+                            self.client_membership_changed.emit()
 
     def create_new_socket(self, address, port):
         socket = QtNetwork.QTcpSocket()

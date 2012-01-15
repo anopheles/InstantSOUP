@@ -78,6 +78,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.client.new_server.connect(lambda _ : self.update_channel_list())
         self.client.new_client.connect(lambda: self.update_user_list())
+        self.client.client_membership_changed.connect(lambda : self.update_channel_list())
 
     def update_nickname(self):
 
@@ -132,7 +133,12 @@ class MainWindow(QtGui.QMainWindow):
                     channel.uid = uid
                     root.addChild(channel)
 
-                    #TODO create all users that are in channel
+                    for client_id in self.client.channel_membership[uid][channel_id]:
+                        client_text = self.client.lobby_users[client_id]
+                        client = QtGui.QTreeWidgetItem([client_text])
+                        client.uid = uid
+                        client.member_id = client_id
+                        channel.addChild(client)
 
 
         self.tab_lobby.channelsList.expandAll()
