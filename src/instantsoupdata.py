@@ -118,7 +118,7 @@ class Client(QtCore.QObject):
 
     def join_channel(self, channel_name, server_id):
         self.send_command_to_server("JOIN\x00%s" % channel_name, server_id)
-        #self.send_client_membership_option()
+        self.send_client_membership_option(new_channel=(server_id, channel_name))
 
     def say(self, text, channel_name, server_id):
         self.send_command_to_server("SAY\x00%s" % text, channel_name, server_id)
@@ -150,7 +150,6 @@ class Client(QtCore.QObject):
         socket.waitForBytesWritten(1000)
 
     def send_regular_pdu(self):
-
         # send nickname
         self.send_client_nick()
 
@@ -181,24 +180,28 @@ class Client(QtCore.QObject):
 
         log.debug('PDU: CLIENT_NICK_OPTION - ID: %i - SENT' % self.pdu_number)
 
-    def send_client_membership_option(self):
+    def send_client_membership_option(self, new_channel=None):
         # mapping from server_id to a list of channel_ids
         server_channels = defaultdict(list)
         for (server_id, channel_id) in self.servers.keys():
             if channel_id:
                 server_channels[server_id].append(channel_id)
 
+        if new_channel:
+            server_id, channel_id = new_channel
+            server_channels[server_id] = channel_id
+
         option_data = []
         for server_id, channels in server_channels.items():
             option_data.append(Container(server_id=server_id, channels=channels))
 
-        option = Container(option_id="CLIENT_MEMBERSHIP_OPTION",
-                           option_data=option_data)
+        if option_data:
+            option = Container(option_id="CLIENT_MEMBERSHIP_OPTION",
+                               option_data=option_data)
 
-        pdu = Container(id=self.id, option=[option])
-
-        data = InstantSoupData.peer_pdu.build(pdu)
-        self._send_datagram(data)
+            pdu = Container(id=self.id, option=[option])
+            data = InstantSoupData.peer_pdu.build(pdu)
+            self._send_datagram(data)
 
         log.debug('PDU: CLIENT_NICK_MEMBERSHIP - ID: %i - SENT' % self.pdu_number)
 
@@ -234,7 +237,6 @@ class Client(QtCore.QObject):
                         except Exception as error:
                             print error
                 elif option["option_id"] == "SERVER_CHANNELS_OPTION":
-                    print "got server channels"
                     channels = option["option_data"]["channels"]
                     for channel in channels:
                         if (uid, channel) not in self.servers:
@@ -427,7 +429,6 @@ class Server(QtCore.QObject):
         self.pdu_number += 1
 
     def send_server_channel_option(self):
-
         if self.channels:
             # define the data to send & send
             option_data = Container(channels=self.channels.keys())
@@ -459,11 +460,13 @@ class Server(QtCore.QObject):
             if uid != self.id:
                 for option in packet["option"]:
                     if option["option_id"] == "CLIENT_NICK_OPTION":
-
                         # new client found or client nick was changed
                         if address not in self.lobby_users:
                             self.lobby_users[address] = (uid, option["option_data"])
                             self.send_server_option()
+
+                    if option["option_id"] == "CLIENT_MEMBERSHIP_OPTION":
+                        pass
 
     def setup_socket(self):
         self.udp_socket = QtNetwork.QUdpSocket(self)
