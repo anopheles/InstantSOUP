@@ -4,10 +4,13 @@
 InstantSOUP
 ===========
 
-The "Instant Satisfaction by Obscure Unstable Protocol" (InstantSOUP) is an application-level protocol for local message exchange.
-The protocol was developed during a telematics project at Karlsruhe Institute of Technology (KIT) during the course of the winter semester 2011/2012.
-InstantSOUP is responsible for connecting the user to a lobby in his or her local area network.
-In this environment the user is able to interact with other participants and chat rooms.
+The "Instant Satisfaction by Obscure Unstable Protocol" (InstantSOUP) is an
+application-level protocol for local message exchange. The protocol was
+developed during a telematics project at Karlsruhe Institute of Technology
+(KIT) during the course of the winter semester 2011/2012. InstantSOUP is
+responsible for connecting the user to a lobby in his or her local area
+network. In this environment the user is able to interact with other
+participants and chat rooms.
 """
 
 import sys
@@ -54,9 +57,9 @@ class MainWindow(QtGui.QMainWindow):
         self.tab_widget.setMovable(True)
         self.tab_widget.setObjectName(_fromUtf8("tab_widget"))
 
-        self.tab_lobby = uic.loadUi("gui/lobbyWidget.ui")
-        self.tab_lobby.setObjectName(_fromUtf8("tab_lobby"))
-        self.tab_widget.addTab(self.tab_lobby, _fromUtf8("Lobby"))
+        self.lobby = uic.loadUi("gui/lobbyWidget.ui")
+        self.lobby.setObjectName(_fromUtf8("lobby"))
+        self.tab_widget.addTab(self.lobby, _fromUtf8("Lobby"))
 
         grid_layout = QtGui.QGridLayout()
         grid_layout.setSizeConstraint(QtGui.QLayout.SetDefaultConstraint)
@@ -70,39 +73,62 @@ class MainWindow(QtGui.QMainWindow):
         central_widget.setLayout(grid_layout)
         self.setCentralWidget(central_widget)
 
+        # --- Qt Signal & Slots connections ---
+
         # if we finish updating the nickname, process the new information
-        self.tab_lobby.nicknameEdit.editingFinished.connect(self.update_nickname)
+        self.lobby.nicknameEdit.editingFinished.connect(self.update_nickname)
 
-        self.tab_lobby.newChannelButton.clicked.connect(self.create_channel)
-        self.tab_lobby.newChannelEdit.editingFinished.connect(self.create_channel)
+        # if we want to create a channel, create it
+        self.lobby.newChannelButton.clicked.connect(self.create_channel)
 
-        self.client.new_server.connect(lambda _ : self.update_channel_list())
-        self.client.new_client.connect(lambda: self.update_user_list())
-        self.client.client_membership_changed.connect(lambda : self.update_channel_list())
+        # if we press enter in the input field, create the channel
+        self.lobby.newChannelEdit.editingFinished.connect(self.create_channel)
+
+        # if we want to enter a channel, enter
+        self.lobby.channelsList.itemDoubleClicked.connect(self.enter_channel)
+
+        # if we have a new server, show it
+        self.client.new_server.connect(self.update_channel_list)
+
+        # if we have a new client, show it
+        self.client.new_client.connect(self.update_user_list)
+
+        # if we have an updated nickname, show it
+        self.client.client_nick_change.connect(self.update_user_list)
+
+        # if we have a new membership, show it
+        self.client.client_membership_changed.connect(self.update_channel_list)
 
     def update_nickname(self):
 
         # get the nickname from the gui field
-        nickname = str(self.tab_lobby.nicknameEdit.text())
+        nickname = str(self.lobby.nicknameEdit.text())
 
         # update the client and inform the server
         self.client.nickname = nickname
         self.client.send_client_nick()
 
     def create_channel(self):
-        channel = str(self.tab_lobby.newChannelEdit.text())
+        channel = str(self.lobby.newChannelEdit.text())
+
+        # try to get the server id from the channels list
         try:
-            server_id = self.tab_lobby.channelsList.selectedItems()[0].uid
+            server_id = self.lobby.channelsList.selectedItems()[0].uid
         except IndexError:
             server_id = self.server.id
 
+        # user has to enter a name for the channel!
         if not channel:
-            # user has to enter a name!
             msg_box = QtGui.QMessageBox()
             msg_box.setText('Please enter a channel name!')
             msg_box.exec_()
         else:
-            self.client.join_channel(channel, server_id)
+            self.client.command_join(channel, server_id)
+
+    # TODO: Benny
+    def enter_channel(self, item):
+        if item.is_channel:
+            self.add_channel_to_tab(item.text(0))
 
     def add_channel_to_tab(self, channel):
         tab_channel = uic.loadUi("gui/ChannelWidget.ui")
@@ -111,45 +137,57 @@ class MainWindow(QtGui.QMainWindow):
         self.tab_widget.addTab(tab_channel, _fromUtf8(channel))
 
     def add_user_to_list(self, user):
-        self.tab_lobby.usersList.addItem(user)
+        self.lobby.usersList.addItem(user)
 
     def update_channel_list(self):
-        self.tab_lobby.channelsList.clear()
+        self.lobby.channelsList.clear()
         server_channels = defaultdict(list)
-        for (uid, channel_id), (address, port, _)  in self.client.servers.items():
-            server_channels[(uid, address)].append((channel_id, port))
+        server_list = self.client.servers.items()
 
-        for (uid, address), channel_id_list in server_channels.items():
-            # create root server
+        for (se_id, ch_id), (address, port, _) in server_list:
+            server_channels[(se_id, address)].append((ch_id, port))
+
+        # show all servers in network
+        for (se_id, address), channel_list in server_channels.items():
+
+            # create root server and add to channels list
             root = QtGui.QTreeWidgetItem(["Server %s" % address.toString()])
-            root.uid = uid
-            self.tab_lobby.channelsList.addTopLevelItem(root)
+            root.uid = se_id
+            root.is_channel = False
+            self.lobby.channelsList.addTopLevelItem(root)
 
-            # create channels
-            for (channel_id, port) in channel_id_list:
-                if channel_id:
-                    channel_text = channel_id + ' (' + address.toString() + ':' + str(port) + ')'
+            # show all channels of server
+            for (ch_id, port) in channel_list:
+                if ch_id:
+                    channel_text = ch_id + ' (' + address.toString() + ':' + str(port) + ')'
                     channel = QtGui.QTreeWidgetItem([channel_text])
-                    channel.uid = uid
+                    channel.uid = se_id
+                    channel.is_channel = True
                     root.addChild(channel)
 
-                    for client_id in self.client.channel_membership[uid][channel_id]:
-                        client_text = self.client.lobby_users[client_id]
+                    # show all clients in channel
+                    client_list = self.client.channel_membership[se_id][ch_id]
+                    for cl_id in client_list:
+                        client_text = self.client.lobby_users[cl_id]
                         client = QtGui.QTreeWidgetItem([client_text])
-                        client.uid = uid
-                        client.member_id = client_id
+                        client.uid = se_id
+                        client.member_id = cl_id
+                        client.is_channel = False
                         channel.addChild(client)
 
-
-        self.tab_lobby.channelsList.expandAll()
+        # show all
+        self.lobby.channelsList.expandAll()
 
     def update_user_list(self):
-        self.tab_lobby.usersList.clear()
+        self.lobby.usersList.clear()
 
+        # create a list entry for every user
         for key in self.client.lobby_users:
             value = self.client.lobby_users[key]
+
             item = QtGui.QListWidgetItem()
             item.setText(value)
+
             self.add_user_to_list(item)
 
 if __name__ == '__main__':
