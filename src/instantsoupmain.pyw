@@ -38,7 +38,7 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        self.init_server()
+        #self.init_server()
         self.init_client()
         self.init_ui()
 
@@ -88,16 +88,19 @@ class MainWindow(QtGui.QMainWindow):
         self.lobby.channelsList.itemDoubleClicked.connect(self.enter_channel)
 
         # if we have a new server, show it
-        self.client.new_server.connect(self.update_channel_list)
+        self.client.server_new.connect(self.update_channel_list)
 
         # if we have a new client, show it
-        self.client.new_client.connect(self.update_user_list)
+        self.client.client_new.connect(self.update_user_list)
 
         # if we have an updated nickname, show it
         self.client.client_nick_change.connect(self.update_user_list)
 
         # if we have a new membership, show it
         self.client.client_membership_changed.connect(self.update_channel_list)
+
+        # if we have lost a server
+        self.client.server_removed.connect(self.update_channel_list)
 
     def update_nickname(self):
 

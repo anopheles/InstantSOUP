@@ -6,7 +6,7 @@ import uuid
 
 from construct import Container, Enum, PrefixedArray, Struct, ULInt32
 from construct import ULInt16, ULInt8, OptionalGreedyRange, PascalString
-from construct import CString, Switch, GreedyRange
+from construct import CString, Switch
 from PyQt4 import QtCore, QtNetwork
 from functools import partial
 from collections import defaultdict
@@ -87,20 +87,22 @@ class Client(QtCore.QObject):
 
     REGULAR_PDU_WAITING_TIME = 15000
 
+    DEFAULT_TIMEOUT_TIME = 1 * REGULAR_PDU_WAITING_TIME + DEFAULT_WAITING_TIME
+
     # emitted when a new client is discovered
-    new_client = QtCore.pyqtSignal()
+    client_new = QtCore.pyqtSignal()
 
     # emitted when a nick of a client is changed
     client_nick_change = QtCore.pyqtSignal()
 
-    # emitted when a new server is discovered
-    new_server = QtCore.pyqtSignal(str)
-
     # emitted when a other client joins or leaves a channel
     client_membership_changed = QtCore.pyqtSignal()
 
-    # emitted when a client received a message from a server, for testing purposes
-    message_received = QtCore.pyqtSignal(str)
+    # emitted when a new server is discovered
+    server_new = QtCore.pyqtSignal(str)
+
+    # emitted when a server is removed
+    server_removed = QtCore.pyqtSignal(str)
 
     def __init__(self, nickname="Telematik", parent=None):
         QtCore.QObject.__init__(self, parent)
@@ -114,8 +116,13 @@ class Client(QtCore.QObject):
         # mapping from client.id to nickname
         self.lobby_users = {}
 
-        # mapping from (server_id, channel) to a tuple containing (address, port, tcp_socket)
+        # mapping from (server_id, channel) to a tuple containing
+        # (address, port, tcp_socket)
         self.servers = {}
+
+        # mapping from (server_id, channel) to a tuple containing
+        # (timer) - (which is a QTimer)
+        self.servers_timers = {}
 
         # mapping from server_id to channel_id to a list of client_ids
         # stores the membership of OTHER peers
@@ -267,7 +274,7 @@ class Client(QtCore.QObject):
     def process_pending_datagrams(self):
         maxlen = self.udp_socket.pendingDatagramSize()
         while self.udp_socket.hasPendingDatagrams():
-            data, address, port = self.udp_socket.readDatagram(maxlen)
+            (data, address, _) = self.udp_socket.readDatagram(maxlen)
             packet = InstantSoupData.peer_pdu.parse(data)
             peer_uid = packet["id"]
             for option in packet["option"]:
@@ -300,7 +307,7 @@ class Client(QtCore.QObject):
             self.lobby_users[peer_uid] = option["option_data"]
 
             # SIGNAL: new client
-            self.new_client.emit()
+            self.client_new.emit()
 
     def handle_client_membership_option(self, peer_uid, option):
         servers = option["option_data"]
@@ -311,36 +318,51 @@ class Client(QtCore.QObject):
                 self.channel_membership[server_id][channel].add(peer_uid)
                 self.client_membership_changed.emit()
 
-    def handle_server_option(self, peer_uid, option, address):
-        if (peer_uid, None) not in self.servers:
+    def handle_server_option(self, server_id, option, address):
+        key = (server_id, None)
+        if key not in self.servers:
 
             # add new server
             port = option["option_data"]["port"]
             try:
                 socket = self.create_tcp_socket(address, port)
-                self.servers[(peer_uid, None)] = (address, port, socket)
+                self.servers[key] = (address, port, socket)
+                self.servers_timers[key] = QtCore.QTimer()
+                self.servers_timers[key].start(self.DEFAULT_TIMEOUT_TIME)
+                self.servers_timers[key].timeout.connect(lambda:
+                    self.remove_server(key))
 
                 # signal: we have a new server!
-                self.new_server.emit(peer_uid)
+                self.server_new.emit(server_id)
             except Exception as error:
                 log.error(error)
+        else:
+            self.servers_timers[key].start(self.DEFAULT_TIMEOUT_TIME)
 
-    def handle_server_channels_option(self, peer_uid, option):
+    def handle_server_channels_option(self, server_id, option):
         channels = option["option_data"]["channels"]
         for channel in channels:
-            if (peer_uid, channel) not in self.servers:
+            key = (server_id, channel)
+            if key not in self.servers:
                 try:
-                    (address, port, _) = self.servers[(peer_uid, None)]
+                    (address, port, _) = self.servers[(server_id, None)]
                     socket = self.create_tcp_socket(address, port)
-                    self.servers[(peer_uid, channel)] = (address, port, socket)
+                    self.servers[key] = (address, port, socket)
 
                     # signal: we have a new server!
-                    self.new_server.emit(peer_uid)
+                    self.server_new.emit(server_id)
                 except Exception as error:
                     log.error(error)
 
     def handle_server_invite_option(self):
         pass
+
+    def remove_server(self, key):
+        (server_id, _) = key
+        self.servers_timers[key].stop()
+        del self.servers_timers[key]
+        del self.servers[key]
+        self.server_removed.emit(server_id)
 
     # Prints the Object
     def __repr__(self):
@@ -479,12 +501,20 @@ class Server(QtCore.QObject):
             for channel_id, client_sockets in self.channels.items():
                 for (client_id, socket) in client_sockets:
                     if invite_client_id == client_id:
+                        option_data = Container(channel_id=channel_id,
+                                          client_id=invite_client_ids
+                                      )
+
                         option = Container(option_id="SERVER_INVITE_OPTION",
-                                           option_data = Container(channel_id=channel_id, client_id=invite_client_ids))
+                                     option_data=option_data
+                                 )
+
                         pdu = Container(id=self.id, option=[option])
+
                         socket.write(InstantSoupData.peer_pdu.build(pdu))
                         socket.waitForBytesWritten()
-        log.debug('PDU: SERVER_INVITE_OPTION - id: %i - SENT' % self.pdu_number)
+        log.debug('PDU: SERVER_INVITE_OPTION - id: %i - SENT' %
+                  self.pdu_number)
 
     def send_regular_pdu(self):
 
@@ -521,7 +551,8 @@ class Server(QtCore.QObject):
             option_data = Container(channels=self.channels.keys())
 
             option = Container(option_id="SERVER_CHANNELS_OPTION",
-                       option_data=option_data)
+                         option_data=option_data
+                     )
 
             pdu = Container(id=self.id,
                     option=[option])
