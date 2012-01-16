@@ -83,6 +83,9 @@ class InstantSoupData(object):
 
 
 class Client(QtCore.QObject):
+    DEFAULT_WAITING_TIME = 1000
+
+    REGULAR_PDU_WAITING_TIME = 15000
 
     # emitted when a new client is discovered
     new_client = QtCore.pyqtSignal()
@@ -123,7 +126,7 @@ class Client(QtCore.QObject):
         # setup the regular_pdu_timer for the regular pdu
         self.regular_pdu_timer = QtCore.QTimer()
         self.regular_pdu_timer.timeout.connect(self.send_regular_pdu)
-        self.regular_pdu_timer.start(15000)
+        self.regular_pdu_timer.start(self.REGULAR_PDU_WAITING_TIME)
 
     #
     # SOCKET FUNCTIONS
@@ -145,7 +148,7 @@ class Client(QtCore.QObject):
         # we have a port, connect!
         socket.connectToHost(address, port)
 
-        if not socket.waitForConnected(100):
+        if not socket.waitForConnected(self.DEFAULT_WAITING_TIME):
             raise Exception('no connection for address %s:%s' %
                       (address.toString(), port))
 
@@ -191,7 +194,7 @@ class Client(QtCore.QObject):
         # we are already connected!
         (_, _, socket) = self.servers[(server_id, channel)]
         socket.write(InstantSoupData.command.build(command))
-        socket.waitForBytesWritten(1000)
+        socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
 
     #
     # DATAGRAMS
