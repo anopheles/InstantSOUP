@@ -38,7 +38,7 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        #self.init_server()
+        self.init_server()
         self.init_client()
         self.init_ui()
 
@@ -101,6 +101,23 @@ class MainWindow(QtGui.QMainWindow):
 
         # if we have lost a server
         self.client.server_removed.connect(self.update_channel_list)
+
+        # if we click on an item in the channel list
+        self.lobby.channelsList.itemClicked.connect(self._handle_channel_list_click)
+
+    def _handle_channel_list_click(self, tree_item):
+        if hasattr(tree_item, "client_id"):
+            client_item = tree_item
+            if client_item.client_id == self.client.id:
+                menu = QtGui.QMenu()
+                leave_action = QtGui.QAction("Leave Channel", menu)
+                leave_action.triggered.connect(lambda : self.client.command_exit(client_item.channel_id, client_item.uid))
+                menu.addAction(leave_action)
+                menu.exec_(QtGui.QCursor.pos())
+            else:
+                print "clicked on different client"
+
+
 
     def update_nickname(self):
 
@@ -174,8 +191,9 @@ class MainWindow(QtGui.QMainWindow):
                         client_text = self.client.lobby_users[cl_id]
                         client = QtGui.QTreeWidgetItem([client_text])
                         client.uid = se_id
-                        client.member_id = cl_id
+                        client.client_id = cl_id
                         client.is_channel = False
+                        client.channel_id = ch_id
                         channel.addChild(client)
 
         # show all
