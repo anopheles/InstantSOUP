@@ -87,10 +87,13 @@ class Client(QtCore.QObject):
 
     REGULAR_PDU_WAITING_TIME = 15000
 
-    DEFAULT_TIMEOUT_TIME = 1 * REGULAR_PDU_WAITING_TIME + DEFAULT_WAITING_TIME
+    DEFAULT_TIMEOUT_TIME = 2 * REGULAR_PDU_WAITING_TIME + DEFAULT_WAITING_TIME
 
     # emitted when a new client is discovered
     client_new = QtCore.pyqtSignal()
+
+    # emitted when a new client is discovered
+    client_removed = QtCore.pyqtSignal()
 
     # emitted when a nick of a client is changed
     client_nick_change = QtCore.pyqtSignal()
@@ -99,10 +102,10 @@ class Client(QtCore.QObject):
     client_membership_changed = QtCore.pyqtSignal()
 
     # emitted when a new server is discovered
-    server_new = QtCore.pyqtSignal(str)
+    server_new = QtCore.pyqtSignal()
 
     # emitted when a server is removed
-    server_removed = QtCore.pyqtSignal(str)
+    server_removed = QtCore.pyqtSignal()
 
     def __init__(self, nickname="Telematik", parent=None):
         QtCore.QObject.__init__(self, parent)
@@ -111,10 +114,13 @@ class Client(QtCore.QObject):
         self.nickname = nickname
         self.pdu_number = 0
 
-        self.sreate_udp_socket()
+        self.create_udp_socket()
 
         # mapping from client.id to nickname
-        self.lobby_users = {}
+        self.users = {}
+
+        # mapping from client.id to timer (which is a QTimer)
+        self.users_timers = {}
 
         # mapping from (server_id, channel) to a tuple containing
         # (address, port, tcp_socket)
@@ -139,7 +145,7 @@ class Client(QtCore.QObject):
     # SOCKET FUNCTIONS
     #
     # create a socket for the PDUs
-    def sreate_udp_socket(self):
+    def create_udp_socket(self):
         self.udp_socket = QtNetwork.QUdpSocket()
         self.udp_socket.bind(broadcast_port,
                              QtNetwork.QUdpSocket.ReuseAddressHint)
@@ -190,13 +196,13 @@ class Client(QtCore.QObject):
 
     def command_exit(self, channel_name, server_id):
         self.send_command_to_server("EXIT", channel_name, server_id)
-        self.send_client_membership_option(new_channel=(server_id, channel_name, False))
+        self.send_client_membership_option((server_id, channel_name, False))
 
     def send_command_to_server(self, command, server_id, channel=None):
         if (server_id, channel) not in self.servers:
             print "server id", server_id
-            log.error("trying to connect to server %s which doesn't exist or" % server_id +
-                      "hasn't yet been recognized" )
+            log.error("trying to connect to server %s which doesn't exist or" %
+                      server_id + "hasn't yet been recognized")
             return
 
         # we are already connected!
@@ -297,55 +303,61 @@ class Client(QtCore.QObject):
                 elif option["option_id"] == "SERVER_INVITE_OPTION":
                     self.handle_server_invite_option(peer_uid, option)
 
-    def handle_client_nick_option(self, peer_uid, option):
+    def handle_client_nick_option(self, client_id, option):
 
         # new client found or client nick was changed
-        if peer_uid in self.lobby_users:
+        if client_id in self.users:
 
             # user already exists
-            if self.lobby_users[peer_uid] != option["option_data"]:
-                self.lobby_users[peer_uid] = option["option_data"]
+            if self.users[client_id] != option["option_data"]:
+                self.users[client_id] = option["option_data"]
 
                 # SIGNAL: client nick was changed
                 self.client_nick_change.emit()
         else:
 
             # add new client
-            self.lobby_users[peer_uid] = option["option_data"]
+            self.users[client_id] = option["option_data"]
+            self.users_timers[client_id] = QtCore.QTimer()
+            self.users_timers[client_id].timeout.connect(lambda:
+                                self.remove_client(client_id))
 
             # SIGNAL: new client
             self.client_new.emit()
 
-    def handle_client_membership_option(self, peer_uid, option):
+        # restart the timer
+        self.users_timers[client_id].start(self.DEFAULT_TIMEOUT_TIME)
+
+    def handle_client_membership_option(self, client_id, option):
         servers = option["option_data"]
         for server_container in servers:
             server_id = server_container["server_id"]
             channels = server_container["channels"]
-            print "handling client membership", channels, peer_uid
             for channel in channels:
-                self.channel_membership[server_id][channel].add(peer_uid)
-                self.client_membership_changed.emit()
+                self.channel_membership[server_id][channel].add(client_id)
+
+        # SIGNAL: new membership
+        self.client_membership_changed.emit()
 
     def handle_server_option(self, server_id, option, address):
-        key = (server_id, None)
-        if key not in self.servers:
+        if (server_id, None) not in self.servers:
 
             # add new server
             port = option["option_data"]["port"]
             try:
                 socket = self.create_tcp_socket(address, port)
-                self.servers[key] = (address, port, socket)
-                self.servers_timers[key] = QtCore.QTimer()
-                self.servers_timers[key].start(self.DEFAULT_TIMEOUT_TIME)
-                self.servers_timers[key].timeout.connect(lambda:
-                    self.remove_server(key))
+                self.servers[(server_id, None)] = (address, port, socket)
+                self.servers_timers[server_id] = QtCore.QTimer()
+                self.servers_timers[server_id].timeout.connect(lambda:
+                    self.remove_server(server_id))
 
-                # signal: we have a new server!
-                self.server_new.emit(server_id)
+                # SIGNAL: we have a new server!
+                self.server_new.emit()
             except Exception as error:
                 log.error(error)
-        else:
-            self.servers_timers[key].start(self.DEFAULT_TIMEOUT_TIME)
+
+        # restart the timer
+        self.servers_timers[server_id].start(self.DEFAULT_TIMEOUT_TIME)
 
     def handle_server_channels_option(self, server_id, option):
         channels = option["option_data"]["channels"]
@@ -358,7 +370,7 @@ class Client(QtCore.QObject):
                     self.servers[key] = (address, port, socket)
 
                     # signal: we have a new server!
-                    self.server_new.emit(server_id)
+                    self.server_new.emit()
                 except Exception as error:
                     log.error(error)
 
@@ -366,17 +378,32 @@ class Client(QtCore.QObject):
         pass
 
     def remove_server(self, key):
-        (server_id, _) = key
         self.servers_timers[key].stop()
         del self.servers_timers[key]
-        del self.servers[key]
-        self.server_removed.emit(server_id)
+
+        # delete all server entries
+        for (server_id, channel) in self.servers:
+            if key == server_id:
+                (_, _, socket) = self.servers[(server_id, channel)]
+                socket.close()
+                del self.servers[(server_id, channel)]
+
+        # server removed
+        self.server_removed.emit()
+
+    def remove_client(self, key):
+        self.users_timers[key].stop()
+        del self.users_timers[key]
+        del self.users[key]
+
+        # client removed
+        self.client_removed.emit()
 
     # Prints the Object
     def __repr__(self):
-        return "Client(%s, %s, lobby_users:%s, servers:%s)" % (self.nickname,
+        return "Client(%s, %s, users:%s, servers:%s)" % (self.nickname,
             self.id,
-            self.lobby_users,
+            self.users,
             self.servers)
 
 
@@ -398,14 +425,14 @@ class Server(QtCore.QObject):
         self.pdu_number = 0
         server_start_port += 1
 
-        self.sreate_udp_socket()
+        self.create_udp_socket()
         self.tcp_server = QtNetwork.QTcpServer(self)
 
         # mapping from channel_id to a list of (client_id, tcp_socket)
         self.channels = {}
 
         # mapping from address to (client_id, nickname)
-        self.lobby_users = {}
+        self.users = {}
 
         if not self.tcp_server.listen(QtNetwork.QHostAddress.Any, self.port):
             log.error("Unable to start the server: %s." %
@@ -487,9 +514,9 @@ class Server(QtCore.QObject):
         channel_name = data.split("\x00")[1]
 
         log.debug("user %s is opening/joining a channel with name %s" %
-                  (self.lobby_users[address], channel_name))
+                  (self.users[address], channel_name))
         try:
-            channel_data = (self.lobby_users[address][0], socket)
+            channel_data = (self.users[address][0], socket)
             self.channels[channel_name].add(channel_data)
             log.debug("channel already exists")
         except KeyError:
@@ -497,18 +524,19 @@ class Server(QtCore.QObject):
             log.debug("creating channel %s" % channel_name)
 
             # create new channel
-            channel_data = (self.lobby_users[address][0], socket)
+            channel_data = (self.users[address][0], socket)
             self.channels[channel_name] = set()
             self.channels[channel_name].add(channel_data)
 
             if not private:
                 self.send_server_channel_option()
             else:
-                self.send_server_invite_option([self.lobby_users[address][0]], channel_name)
+                self.send_server_invite_option([self.users[address][0]], channel_name)
 
     def send_server_invite_option(self, invite_client_ids, channel_id):
 
-        # for each client_id find the socket on which to send the server_invite option
+        # for each client_id find the socket on which to send the
+        # server_invite option
         for invite_client_id in invite_client_ids:
             for channel_id, client_sockets in self.channels.items():
                 for (client_id, socket) in client_sockets:
@@ -592,14 +620,14 @@ class Server(QtCore.QObject):
                     if option["option_id"] == "CLIENT_NICK_OPTION":
 
                         # new client found or client nick was changed
-                        if address not in self.lobby_users:
-                            self.lobby_users[address] = (uid, option["option_data"])
+                        if address not in self.users:
+                            self.users[address] = (uid, option["option_data"])
                             self.send_server_option()
 
                     if option["option_id"] == "CLIENT_MEMBERSHIP_OPTION":
                         pass
 
-    def sreate_udp_socket(self):
+    def create_udp_socket(self):
         self.udp_socket = QtNetwork.QUdpSocket(self)
         self.udp_socket.bind(broadcast_port,
             QtNetwork.QUdpSocket.ReuseAddressHint)

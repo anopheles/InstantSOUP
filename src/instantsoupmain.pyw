@@ -17,9 +17,7 @@ import sys
 import logging
 
 from PyQt4 import QtCore, QtGui, uic
-from instantsoupdata import InstantSoupData, Client, Server
-from thread import start_new_thread
-from functools import partial
+from instantsoupdata import Client, Server
 from collections import defaultdict
 
 # Initialize logger & set logging level
@@ -76,50 +74,57 @@ class MainWindow(QtGui.QMainWindow):
         # --- Qt Signal & Slots connections ---
 
         # if we finish updating the nickname, process the new information
-        self.lobby.nicknameEdit.editingFinished.connect(self.update_nickname)
+        self.lobby.nicknameEdit.editingFinished.connect(self._update_nickname)
 
         # if we want to create a channel, create it
-        self.lobby.newChannelButton.clicked.connect(self.create_channel)
+        self.lobby.newChannelButton.clicked.connect(self._create_channel)
 
         # if we press enter in the input field, create the channel
-        self.lobby.newChannelEdit.editingFinished.connect(self.create_channel)
+        self.lobby.newChannelEdit.editingFinished.connect(self._create_channel)
 
         # if we want to enter a channel, enter
-        self.lobby.channelsList.itemDoubleClicked.connect(self.enter_channel)
-
-        # if we have a new server, show it
-        self.client.server_new.connect(self.update_channel_list)
-
-        # if we have a new client, show it
-        self.client.client_new.connect(self.update_user_list)
-
-        # if we have an updated nickname, show it
-        self.client.client_nick_change.connect(self.update_user_list)
-
-        # if we have a new membership, show it
-        self.client.client_membership_changed.connect(self.update_channel_list)
-
-        # if we have lost a server
-        self.client.server_removed.connect(self.update_channel_list)
+        self.lobby.channelsList.itemDoubleClicked.connect(self._enter_channel)
 
         # if we click on an item in the channel list
         self.lobby.channelsList.itemClicked.connect(self._handle_channel_list_click)
 
+        # if we have a new client, show it
+        self.client.client_new.connect(self._update_user_list)
+
+        # if we have lost a client, show it
+        self.client.client_removed.connect(self._update_user_list)
+
+        # if we have an updated nickname, show it
+        self.client.client_nick_change.connect(self._update_user_list)
+
+        # if we have a new membership, show it
+        self.client.client_membership_changed.connect(self._update_channel_list)
+
+        # if we have a new server, show it
+        self.client.server_new.connect(self._update_channel_list)
+
+        # if we have lost a server
+        self.client.server_removed.connect(self._update_channel_list)
+
     def _handle_channel_list_click(self, tree_item):
-        if hasattr(tree_item, "client_id"):
-            client_item = tree_item
-            if client_item.client_id == self.client.id:
-                menu = QtGui.QMenu()
-                leave_action = QtGui.QAction("Leave Channel", menu)
-                leave_action.triggered.connect(lambda : self.client.command_exit(client_item.channel_id, client_item.uid))
-                menu.addAction(leave_action)
-                menu.exec_(QtGui.QCursor.pos())
-            else:
-                print "clicked on different client"
+        if tree_item.is_channel:
+            iterator = QtGui.QTreeWidgetItemIterator(tree_item)
+            iterator.__iadd__(1)
 
+            # loop through all clients of a channel
+            while iterator.value() != None:
+                client_item = iterator.value()
 
+                # show only a menu if we are in the channel
+                if client_item.client_id == self.client.id:
+                    menu = QtGui.QMenu()
+                    leave_action = QtGui.QAction("Leave Channel", menu)
+                    leave_action.triggered.connect(lambda: self.client.command_exit(client_item.channel_id, client_item.uid))
+                    menu.addAction(leave_action)
+                    menu.exec_(QtGui.QCursor.pos())
+                iterator.__iadd__(1)
 
-    def update_nickname(self):
+    def _update_nickname(self):
 
         # get the nickname from the gui field
         nickname = str(self.lobby.nicknameEdit.text())
@@ -128,38 +133,40 @@ class MainWindow(QtGui.QMainWindow):
         self.client.nickname = nickname
         self.client.send_client_nick()
 
-    def create_channel(self):
+    def _create_channel(self):
         channel = str(self.lobby.newChannelEdit.text())
+        server_id = self.server.id
 
-        # try to get the server id from the channels list
-        try:
+        # all selected items
+        selected_items = self.lobby.channelsList.selectedItems()
+
+        # if we have at least one selected item, go on
+        if len(selected_items) > 0:
             server_id = self.lobby.channelsList.selectedItems()[0].uid
-        except IndexError:
-            server_id = self.server.id
 
-        # user has to enter a name for the channel!
-        if not channel:
+        # if we have a channel name, join it
+        if channel:
+            self.client.command_join(channel, server_id)
+        else:
             msg_box = QtGui.QMessageBox()
             msg_box.setText('Please enter a channel name!')
             msg_box.exec_()
-        else:
-            self.client.command_join(channel, server_id)
 
     # TODO: Benny
-    def enter_channel(self, item):
+    def _enter_channel(self, item):
         if item.is_channel:
-            self.add_channel_to_tab(item.text(0))
+            self._add_channel_to_tab(item.text(0))
 
-    def add_channel_to_tab(self, channel):
+    def _add_channel_to_tab(self, channel):
         tab_channel = uic.loadUi("gui/ChannelWidget.ui")
         tab_channel.setObjectName(_fromUtf8("tab_channel"))
 
         self.tab_widget.addTab(tab_channel, _fromUtf8(channel))
 
-    def add_user_to_list(self, user):
+    def _add_user_to_list(self, user):
         self.lobby.usersList.addItem(user)
 
-    def update_channel_list(self):
+    def _update_channel_list(self):
         self.lobby.channelsList.clear()
         server_channels = defaultdict(list)
         server_list = self.client.servers.items()
@@ -188,7 +195,7 @@ class MainWindow(QtGui.QMainWindow):
                     # show all clients in channel
                     client_list = self.client.channel_membership[se_id][ch_id]
                     for cl_id in client_list:
-                        client_text = self.client.lobby_users[cl_id]
+                        client_text = self.client.users[cl_id]
                         client = QtGui.QTreeWidgetItem([client_text])
                         client.uid = se_id
                         client.client_id = cl_id
@@ -199,17 +206,17 @@ class MainWindow(QtGui.QMainWindow):
         # show all
         self.lobby.channelsList.expandAll()
 
-    def update_user_list(self):
+    def _update_user_list(self):
         self.lobby.usersList.clear()
 
         # create a list entry for every user
-        for key in self.client.lobby_users:
-            value = self.client.lobby_users[key]
+        for key in self.client.users:
+            value = self.client.users[key]
 
             item = QtGui.QListWidgetItem()
             item.setText(value)
 
-            self.add_user_to_list(item)
+            self._add_user_to_list(item)
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
