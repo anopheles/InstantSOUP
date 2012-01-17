@@ -153,10 +153,10 @@ class MainWindow(QtGui.QMainWindow):
             msg_box.setText('Please select a server!')
             msg_box.exec_()
 
-    # TODO: Benny
     def _enter_channel(self, item):
         if item.is_channel:
             self._add_channel_to_tab(item.text(0))
+            self.client.command_join(item.channel_id, item.server_id)
 
     def _add_channel_to_tab(self, channel):
         tab_channel = uic.loadUi("gui/ChannelWidget.ui")
@@ -207,19 +207,21 @@ class MainWindow(QtGui.QMainWindow):
                     root.addChild(channel)
 
                     # show all clients in channel
-                    client_list = self.client.channel_membership[server_id][channel_id]
-                    for client_id in client_list:
-                        client_text = self.client.users[client_id]
-                        client = QtGui.QTreeWidgetItem([client_text])
-                        client.is_channel = False
+                    key = (server_id, channel_id)
+                    if key in self.client.membership:
+                        client_list = self.client.membership[key]
+                        for client_id in client_list:
+                            client_text = self.client.users[client_id]
+                            client = QtGui.QTreeWidgetItem([client_text])
+                            client.is_channel = False
 
-                        # set known identifiers
-                        client.server_id = server_id
-                        client.channel_id = channel_id
-                        client.client_id = client_id
+                            # set known identifiers
+                            client.server_id = server_id
+                            client.channel_id = channel_id
+                            client.client_id = client_id
 
-                        # add to root
-                        channel.addChild(client)
+                            # add to root
+                            channel.addChild(client)
 
         # show all
         self.lobby.channelsList.expandAll()

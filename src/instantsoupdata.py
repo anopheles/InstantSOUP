@@ -132,7 +132,7 @@ class Client(QtCore.QObject):
 
         # mapping from (server_id) to c(hannel_id) to a list of (client_ids)
         # stores the membership of this and OTHER peers
-        self.channel_membership = defaultdict(lambda: defaultdict(set))
+        self.membership = {}
 
         self.send_client_nick()
 
@@ -182,20 +182,32 @@ class Client(QtCore.QObject):
     #
     # SERVER COMMANDOS
     #
-    def command_join(self, channel_name, server_id):
-        self.send_command_to_server("JOIN\x00%s" % channel_name, server_id)
-        self.send_client_membership_option((server_id, channel_name))
+    def command_join(self, channel_id, server_id):
+        self.send_command_to_server("JOIN\x00%s" % channel_id, server_id)
+        key = (server_id, channel_id)
 
-    def command_say(self, text, channel_name, server_id):
+        # if combination not exist, create and be a member
+        if key not in self.membership:
+            self.membership[key] = set()
+            self.membership[key].add(self.id)
+
+        self.send_client_membership_option()
+
+    def command_say(self, text, channel_id, server_id):
         self.send_command_to_server("SAY\x00%s" % text,
-                                    server_id, channel_name)
+                                    server_id, channel_id)
 
-    def command_standby(self, peer_id, channel_name, server_id):
+    def command_standby(self, peer_id, channel_id, server_id):
         self.send_command_to_server("STANDBY\x00%s" % peer_id,
-                                    server_id, channel_name)
+                                    server_id, channel_id)
 
-    def command_exit(self, channel_name, server_id):
-        self.send_command_to_server("EXIT", server_id, channel_name)
+    def command_exit(self, channel_id, server_id):
+        self.send_command_to_server("EXIT", server_id, channel_id)
+
+        # delete combination from memberships
+        key = (server_id, channel_id)
+        del self.membership[key]
+
         self.send_client_membership_option()
 
     def send_command_to_server(self, command, server_id, channel=None):
@@ -240,18 +252,13 @@ class Client(QtCore.QObject):
 
         log.debug('PDU: CLIENT_NICK_OPTION - ID: %i - SENT' % self.pdu_number)
 
-    def send_client_membership_option(self, new_channel=None):
+    def send_client_membership_option(self):
 
         # mapping from server_id to a list of channel_ids
         server_channels = defaultdict(list)
-        for (server_id, channel_id) in self.servers:
+        for (server_id, channel_id), _ in self.membership.items():
             if channel_id:
                 server_channels[server_id].append(channel_id)
-
-        # if we have a new channel, broadcast it
-        if new_channel:
-            server_id, channel_id = new_channel
-            server_channels[server_id].append(channel_id)
 
         # build the channel list for a server
         option_data = []
@@ -267,6 +274,7 @@ class Client(QtCore.QObject):
             data = InstantSoupData.peer_pdu.build(pdu)
             self._send_datagram(data)
 
+        # SIGNAL: membership changed
         self.client_membership_changed.emit()
         log.debug('PDU: CLIENT_NICK_MEMBERSHIP - ID: %i - SENT' %
                   self.pdu_number)
@@ -326,10 +334,16 @@ class Client(QtCore.QObject):
         for server_container in servers:
             server_id = server_container["server_id"]
             channels = server_container["channels"]
-            for channel in channels:
-                self.channel_membership[server_id][channel].add(client_id)
+            for channel_id in channels:
+                key = (server_id, channel_id)
 
-        # SIGNAL: new membership
+                if key in self.membership:
+                    self.membership[key].add(client_id)
+                else:
+                    self.membership[key] = set()
+                    self.membership[key].add(client_id)
+
+        # SIGNAL: memberships has changed
         self.client_membership_changed.emit()
 
     def handle_server_option(self, server_id, option, address):
@@ -518,7 +532,7 @@ class Server(QtCore.QObject):
 
         # remove client from channel
         for channel_name, _ in self.channels.items():
-            if (client_id, socket) in self.channels[channel_name].items():
+            if (client_id, socket) in self.channels[channel_name]:
                 self.channels[channel_name].remove((client_id, socket))
 
     def handle_say_command(self, data, socket):
