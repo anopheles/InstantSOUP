@@ -123,14 +123,14 @@ class Client(QtCore.QObject):
         self.users_timers = {}
 
         # mapping from (server_id, channel) to a tuple containing
-        # (address, port, tcp_socket)
+        # (tcp_socket)
         self.servers = {}
 
         # mapping from (server_id, channel) to a tuple containing
         # (timer) - (which is a QTimer)
         self.servers_timers = {}
 
-        # mapping from server_id to channel_id to a list of client_ids
+        # mapping from (server_id) to c(hannel_id) to a list of (client_ids)
         # stores the membership of this and OTHER peers
         self.channel_membership = defaultdict(lambda: defaultdict(set))
 
@@ -184,31 +184,29 @@ class Client(QtCore.QObject):
     #
     def command_join(self, channel_name, server_id):
         self.send_command_to_server("JOIN\x00%s" % channel_name, server_id)
-        self.send_client_membership_option((server_id, channel_name, True))
+        self.send_client_membership_option((server_id, channel_name))
 
     def command_say(self, text, channel_name, server_id):
         self.send_command_to_server("SAY\x00%s" % text,
-                                    channel_name, server_id)
+                                    server_id, channel_name)
 
     def command_standby(self, peer_id, channel_name, server_id):
         self.send_command_to_server("STANDBY\x00%s" % peer_id,
-                                    channel_name, server_id)
+                                    server_id, channel_name)
 
     def command_exit(self, channel_name, server_id):
-        self.send_command_to_server("EXIT", channel_name, server_id)
-        self.send_client_membership_option((server_id, channel_name, False))
+        self.send_command_to_server("EXIT", server_id, channel_name)
+        self.send_client_membership_option()
 
     def send_command_to_server(self, command, server_id, channel=None):
         if (server_id, channel) not in self.servers:
-            print "server id", server_id
-            log.error("trying to connect to server %s which doesn't exist or" %
-                      server_id + "hasn't yet been recognized")
-            return
+            log.error("server %s doesn't exist" % server_id)
+        else:
 
-        # we are already connected!
-        (_, _, socket) = self.servers[(server_id, channel)]
-        socket.write(InstantSoupData.command.build(command))
-        socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
+            # we are already connected!
+            socket = self.servers[(server_id, channel)]
+            socket.write(InstantSoupData.command.build(command))
+            socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
 
     #
     # DATAGRAMS
@@ -246,19 +244,14 @@ class Client(QtCore.QObject):
 
         # mapping from server_id to a list of channel_ids
         server_channels = defaultdict(list)
-        for (server_id, channel_id) in self.servers.keys():
+        for (server_id, channel_id) in self.servers:
             if channel_id:
                 server_channels[server_id].append(channel_id)
 
         # if we have a new channel, broadcast it
         if new_channel:
-            server_id, channel_id, new = new_channel
-            if new:
-                server_channels[server_id].append(channel_id)
-            else:
-                del self.servers[(server_id, channel_id)]
-                server_channels[server_id].remove(channel_id)
-                self.channel_membership[server_id][channel_id].remove(self.id)
+            server_id, channel_id = new_channel
+            server_channels[server_id].append(channel_id)
 
         # build the channel list for a server
         option_data = []
@@ -282,7 +275,7 @@ class Client(QtCore.QObject):
         self.udp_socket.writeDatagram(datagram, group_address, broadcast_port)
 
     #
-    # PROCESSING FUNCTIONS (INCOMING DATA)
+    # PROCESSING FUNCTIONS (INCOMING PDUS)
     #
     def process_pending_datagrams(self):
         maxlen = self.udp_socket.pendingDatagramSize()
@@ -346,7 +339,7 @@ class Client(QtCore.QObject):
             port = option["option_data"]["port"]
             try:
                 socket = self.create_tcp_socket(address, port)
-                self.servers[(server_id, None)] = (address, port, socket)
+                self.servers[(server_id, None)] = socket
                 self.servers_timers[server_id] = QtCore.QTimer()
                 self.servers_timers[server_id].timeout.connect(lambda:
                     self.remove_server(server_id))
@@ -365,9 +358,10 @@ class Client(QtCore.QObject):
             key = (server_id, channel)
             if key not in self.servers:
                 try:
-                    (address, port, _) = self.servers[(server_id, None)]
-                    socket = self.create_tcp_socket(address, port)
-                    self.servers[key] = (address, port, socket)
+                    socket = self.servers[(server_id, None)]
+                    address = socket.peerAddress()
+                    port = socket.peerPort()
+                    self.servers[key] = self.create_tcp_socket(address, port)
 
                     # signal: we have a new server!
                     self.server_new.emit()
@@ -384,7 +378,7 @@ class Client(QtCore.QObject):
         # delete all server entries
         for (server_id, channel) in self.servers:
             if key == server_id:
-                (_, _, socket) = self.servers[(server_id, channel)]
+                socket = self.servers[(server_id, channel)]
                 socket.close()
                 del self.servers[(server_id, channel)]
 
@@ -428,10 +422,10 @@ class Server(QtCore.QObject):
         self.create_udp_socket()
         self.tcp_server = QtNetwork.QTcpServer(self)
 
-        # mapping from channel_id to a list of (client_id, tcp_socket)
+        # mapping from (channel_id) to a list of (client_id, tcp_socket)
         self.channels = {}
 
-        # mapping from address to (client_id, nickname)
+        # mapping from (address) to (client_id)
         self.users = {}
 
         if not self.tcp_server.listen(QtNetwork.QHostAddress.Any, self.port):
@@ -451,6 +445,19 @@ class Server(QtCore.QObject):
         self.regular_pdu_timer = QtCore.QTimer()
         self.regular_pdu_timer.timeout.connect(self.send_regular_pdu)
         self.regular_pdu_timer.start(self.REGULAR_PDU_WAITING_TIME)
+
+    #
+    # SOCKET FUNCTIONS
+    #
+    # create a socket for the PDUs
+    def create_udp_socket(self):
+        self.udp_socket = QtNetwork.QUdpSocket()
+        self.udp_socket.bind(broadcast_port,
+                             QtNetwork.QUdpSocket.ReuseAddressHint)
+        self.udp_socket.joinMulticastGroup(group_address)
+
+        # connect the socket input with the processing function
+        self.udp_socket.readyRead.connect(self._process_pending_datagrams)
 
     def handle_connection(self):
         client_connection = self.tcp_server.nextPendingConnection()
@@ -472,13 +479,30 @@ class Server(QtCore.QObject):
         self.handle_data(data, client_connection)
         client_connection.disconnected.connect(client_connection.deleteLater)
 
-    def search_channel(self, socket):
-        for channel_name, iterable in self.channels.items():
-                for client_id, client_socket in iterable:
-                    if client_socket == socket:
-                        return client_id, channel_name
-        return []
+    #
+    # PROCESSING FUNCTIONS (INCOMING PDUS)
+    #
+    def _process_pending_datagrams(self):
+        maxlen = self.udp_socket.pendingDatagramSize()
 
+        # loop through all datagrams which are not send yet
+        while self.udp_socket.hasPendingDatagrams():
+            (datagram, address, _) = self.udp_socket.readDatagram(maxlen)
+            packet = InstantSoupData.peer_pdu.parse(datagram)
+            uid = packet['id']
+            if uid != self.id:
+                for option in packet["option"]:
+                    if option["option_id"] == "CLIENT_NICK_OPTION":
+                        self.handle_client_nick_option(address, uid)
+                    elif option["option_id"] == "CLIENT_MEMBERSHIP_OPTION":
+                        pass
+
+    def handle_client_nick_option(self, address, client_id):
+        self.users[address] = client_id
+
+    #
+    # PROCESSING FUNCTIONS (INCOMING SERVER COMMANDOS)
+    #
     def handle_data(self, command, socket):
         data = InstantSoupData.command.parse(command)
 
@@ -490,8 +514,12 @@ class Server(QtCore.QObject):
             self.handle_exit_command(data, socket)
 
     def handle_exit_command(self, data, socket):
-        client_id, channel_id = self.search_channel(socket)
-        self.channels[channel_id].remove((client_id, socket))
+        client_id = self.users[socket.peerAddress()]
+
+        # remove client from channel
+        for channel_name, _ in self.channels.items():
+            if (client_id, socket) in self.channels[channel_name].items():
+                self.channels[channel_name].remove((client_id, socket))
 
     def handle_say_command(self, data, socket):
 
@@ -510,28 +538,22 @@ class Server(QtCore.QObject):
                 " associated with a channel. use the join command")
 
     def handle_join_command(self, data, socket):
-        address = socket.peerAddress()
+        client_id = self.users[socket.peerAddress()]
         channel_name = data.split("\x00")[1]
 
-        log.debug("user %s is opening/joining a channel with name %s" %
-                  (self.users[address], channel_name))
-        try:
-            channel_data = (self.users[address][0], socket)
-            self.channels[channel_name].add(channel_data)
-            log.debug("channel already exists")
-        except KeyError:
+        if channel_name in self.channels:
+            self.channels[channel_name].add((client_id, socket))
+        else:
             private = channel_name.startswith("@")
-            log.debug("creating channel %s" % channel_name)
 
-            # create new channel
-            channel_data = (self.users[address][0], socket)
+            # create a new channel
             self.channels[channel_name] = set()
-            self.channels[channel_name].add(channel_data)
+            self.channels[channel_name].add((client_id, socket))
 
             if not private:
                 self.send_server_channel_option()
             else:
-                self.send_server_invite_option([self.users[address][0]], channel_name)
+                self.send_server_invite_option([client_id], channel_name)
 
     def send_server_invite_option(self, invite_client_ids, channel_id):
 
@@ -605,31 +627,3 @@ class Server(QtCore.QObject):
 
     def send_datagram(self, datagram):
         self.udp_socket.writeDatagram(datagram, group_address, broadcast_port)
-
-    def _process_pending_datagrams(self):
-        maxlen = self.udp_socket.pendingDatagramSize()
-
-        # loop through all datagrams which are not send yet
-        while self.udp_socket.hasPendingDatagrams():
-            (datagram, address, _) = self.udp_socket.readDatagram(maxlen)
-            packet = InstantSoupData.peer_pdu.parse(datagram)
-            uid = packet['id']
-
-            if uid != self.id:
-                for option in packet["option"]:
-                    if option["option_id"] == "CLIENT_NICK_OPTION":
-
-                        # new client found or client nick was changed
-                        if address not in self.users:
-                            self.users[address] = (uid, option["option_data"])
-                            self.send_server_option()
-
-                    if option["option_id"] == "CLIENT_MEMBERSHIP_OPTION":
-                        pass
-
-    def create_udp_socket(self):
-        self.udp_socket = QtNetwork.QUdpSocket(self)
-        self.udp_socket.bind(broadcast_port,
-            QtNetwork.QUdpSocket.ReuseAddressHint)
-        self.udp_socket.joinMulticastGroup(group_address)
-        self.udp_socket.readyRead.connect(self._process_pending_datagrams)

@@ -36,7 +36,7 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
 
-        self.init_server()
+        #self.init_server()
         self.init_client()
         self.init_ui()
 
@@ -79,9 +79,6 @@ class MainWindow(QtGui.QMainWindow):
         # if we want to create a channel, create it
         self.lobby.newChannelButton.clicked.connect(self._create_channel)
 
-        # if we press enter in the input field, create the channel
-        self.lobby.newChannelEdit.editingFinished.connect(self._create_channel)
-
         # if we want to enter a channel, enter
         self.lobby.channelsList.itemDoubleClicked.connect(self._enter_channel)
 
@@ -116,10 +113,11 @@ class MainWindow(QtGui.QMainWindow):
                 client_item = iterator.value()
 
                 # show only a menu if we are in the channel
-                if client_item.client_id == self.client.id:
+                if (not client_item.is_channel and
+                    client_item.client_id == self.client.id):
                     menu = QtGui.QMenu()
                     leave_action = QtGui.QAction("Leave Channel", menu)
-                    leave_action.triggered.connect(lambda: self.client.command_exit(client_item.channel_id, client_item.uid))
+                    leave_action.triggered.connect(lambda: self.client.command_exit(client_item.channel_id, client_item.server_id))
                     menu.addAction(leave_action)
                     menu.exec_(QtGui.QCursor.pos())
                 iterator.__iadd__(1)
@@ -135,21 +133,24 @@ class MainWindow(QtGui.QMainWindow):
 
     def _create_channel(self):
         channel = str(self.lobby.newChannelEdit.text())
-        server_id = self.server.id
 
         # all selected items
         selected_items = self.lobby.channelsList.selectedItems()
 
         # if we have at least one selected item, go on
         if len(selected_items) > 0:
-            server_id = self.lobby.channelsList.selectedItems()[0].uid
+            server_id = selected_items[0].server_id
 
-        # if we have a channel name, join it
-        if channel:
-            self.client.command_join(channel, server_id)
+            # if we have a channel name, join it
+            if channel:
+                self.client.command_join(channel, server_id)
+            else:
+                msg_box = QtGui.QMessageBox()
+                msg_box.setText('Please enter a channel name!')
+                msg_box.exec_()
         else:
             msg_box = QtGui.QMessageBox()
-            msg_box.setText('Please enter a channel name!')
+            msg_box.setText('Please select a server!')
             msg_box.exec_()
 
     # TODO: Benny
@@ -171,36 +172,53 @@ class MainWindow(QtGui.QMainWindow):
         server_channels = defaultdict(list)
         server_list = self.client.servers.items()
 
-        for (se_id, ch_id), (address, port, _) in server_list:
-            server_channels[(se_id, address)].append((ch_id, port))
+        for (server_id, channel_id), socket in server_list:
+            key = (server_id, socket.peerAddress())
+            server_channels[key].append((channel_id, socket))
 
         # show all servers in network
-        for (se_id, address), channel_list in server_channels.items():
+        for (server_id, address), channel_list in server_channels.items():
 
             # create root server and add to channels list
-            root = QtGui.QTreeWidgetItem(["Server %s" % address.toString()])
-            root.uid = se_id
+            root = QtGui.QTreeWidgetItem(["Server %s" %
+                                          address.toString()])
             root.is_channel = False
+
+            # set known identifiers
+            root.server_id = server_id
+
+            # add to root
             self.lobby.channelsList.addTopLevelItem(root)
 
             # show all channels of server
-            for (ch_id, port) in channel_list:
-                if ch_id:
-                    channel_text = ch_id + ' (' + address.toString() + ':' + str(port) + ')'
+            for (channel_id, socket) in channel_list:
+                if channel_id:
+                    channel_text = (channel_id + ' (' +
+                                    socket.localAddress().toString() + ':' +
+                                    str(socket.localPort()) + ')')
                     channel = QtGui.QTreeWidgetItem([channel_text])
-                    channel.uid = se_id
                     channel.is_channel = True
+
+                    # set known identifiers
+                    channel.server_id = server_id
+                    channel.channel_id = channel_id
+
+                    # add to root
                     root.addChild(channel)
 
                     # show all clients in channel
-                    client_list = self.client.channel_membership[se_id][ch_id]
-                    for cl_id in client_list:
-                        client_text = self.client.users[cl_id]
+                    client_list = self.client.channel_membership[server_id][channel_id]
+                    for client_id in client_list:
+                        client_text = self.client.users[client_id]
                         client = QtGui.QTreeWidgetItem([client_text])
-                        client.uid = se_id
-                        client.client_id = cl_id
                         client.is_channel = False
-                        client.channel_id = ch_id
+
+                        # set known identifiers
+                        client.server_id = server_id
+                        client.channel_id = channel_id
+                        client.client_id = client_id
+
+                        # add to root
                         channel.addChild(client)
 
         # show all
