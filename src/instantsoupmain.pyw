@@ -40,7 +40,8 @@ class MainWindow(QtGui.QMainWindow):
         #self.init_server()
         self.init_client()
         self.init_ui()
-        self.tab_channel_list = list()
+
+        self.tabs = {}
 
     def init_server(self):
         self.server = Server(parent=self)
@@ -81,9 +82,6 @@ class MainWindow(QtGui.QMainWindow):
         # if we want to create a channel, create it
         self.lobby.newChannelButton.clicked.connect(self._create_channel)
 
-        # if we want to enter a channel, enter
-        self.lobby.channelsList.itemDoubleClicked.connect(self._enter_channel)
-
         # if we click on an item in the channel list
         self.lobby.channelsList.itemClicked.connect(self._handle_channel_list_click)
 
@@ -107,7 +105,11 @@ class MainWindow(QtGui.QMainWindow):
         self.client.server_removed.connect(self._update_channel_list)
 
     def _handle_channel_list_click(self, tree_item):
-        if tree_item.is_channel:
+
+        # do we have a channel_id?
+        if hasattr(tree_item, 'channel_id'):
+
+            items = set()
             iterator = QtGui.QTreeWidgetItemIterator(tree_item)
             iterator.__iadd__(1)
 
@@ -115,17 +117,28 @@ class MainWindow(QtGui.QMainWindow):
             while iterator.value() != None:
                 client_item = iterator.value()
 
-                # show only a menu if we are in the channel
-                if (not client_item.is_channel and
-                    client_item.client_id == self.client.id):
-                    menu = QtGui.QMenu()
-                    leave_action = QtGui.QAction("Leave Channel", menu)
-                    leave_action.triggered.connect(lambda: self.client.command_exit(client_item.channel_id, client_item.server_id))
-                    # Deletes channel out of tab list if its possible to have to listeners
-                    leave_action.triggered.connect(lambda: self.tab_channel_list.remove(client_item.channel_id))        
-                    menu.addAction(leave_action)
-                    menu.exec_(QtGui.QCursor.pos())
+                # do we have a client_id?
+                if hasattr(client_item, 'client_id'):
+                    items.add(client_item.client_id)
                 iterator.__iadd__(1)
+
+            # create the menu
+            menu = QtGui.QMenu()
+            action = QtGui.QAction(menu)
+
+            # if we are not in channel -> enter, else -> leave
+            if self.client.id not in items:
+                action.setText("Enter Channel")
+                action.triggered.connect(lambda:
+                    self._enter_channel(tree_item))
+            else:
+                action.setText("Leave Channel")
+                action.triggered.connect(lambda:
+                    self._leave_channel(tree_item))
+            menu.addAction(action)
+
+            # start menu
+            menu.exec_(QtGui.QCursor.pos())
 
     def _update_nickname(self):
 
@@ -158,22 +171,48 @@ class MainWindow(QtGui.QMainWindow):
             msg_box.setText('Please select a server!')
             msg_box.exec_()
 
-    def enter_channel(self, tree_item):
-        if tree_item.is_channel:
-            channel_item = tree_item        
-            self.tab_channel_list.append(channel_item.uid)
-            self.add_channel_to_tab(channel_item.text(0))
-            
-    def add_channel_to_tab(self, channelname):
+    def _enter_channel(self, tree_item):
+        if hasattr(tree_item, 'channel_id'):
+            server_id = tree_item.server_id
+            channel_id = tree_item.channel_id
+            channel_name = tree_item.text(0)
+
+            # do some stuff :)
+            self.client.command_join(channel_id, server_id)
+            tab = self._add_channel_to_tab(channel_name)
+            self.tabs[(server_id, channel_id)] = tab
+
+    def _leave_channel(self, tree_item):
+        if hasattr(tree_item, 'channel_id'):
+            server_id = tree_item.server_id
+            channel_id = tree_item.channel_id
+
+            # delete tab and exit
+            self.client.command_exit(channel_id, server_id)
+            tab = self.tabs[(server_id, channel_id)]
+            self._remove_channel_from_tab(tab)
+            del self.tabs[(server_id, channel_id)]
+
+    def _remove_channel_from_tab(self, tab):
+        number_of_tabs = len(self.tab_widget)
+        i = 0
+        while(i< number_of_tabs): 
+            if tab == self.tab_widget.widget(i):
+                self.tab_widget.removeTab(i)
+            i += 1
+
+    def _add_channel_to_tab(self, channelname):
         tab_channel = uic.loadUi("gui/ChannelWidget.ui")
         tab_channel.setObjectName(_fromUtf8("tab_channel"))
-        tab_channel.messageEdit.editingFinished.connect(self.send_message)
+        tab_channel.messageEdit.editingFinished.connect(self._send_message)
         #self.client.server_sends_message.connect(self.display_message)
         self.tab_widget.addTab(tab_channel, _fromUtf8(channelname))
-            
-    def send_message(self):
+
+        return tab_channel
+
+    def _send_message(self):
         index = self.tab_widget.currentIndex()-1
-        server_id = self.tab_channel_list[index]
+        server_id = self.tabs[index]
         server_name = self.tab_widget.tabText(0)
         message = str(self.tab_widget.currentWidget().messageEdit.text())
         self.tab_widget.currentWidget().messageEdit.clear()
@@ -181,7 +220,7 @@ class MainWindow(QtGui.QMainWindow):
     
     def display_message(self, nickname, text, server_id):
         try:
-            list_position = self.tab_channel_list.index(server_id)
+            list_position = self.tabs.index(server_id)
             textbox = self.tab_widget.widget(list_position+1).chatHistory
             textbox.insertPlainText(self.to_chat_format(nickname, text))
             textbox.insertPlainText("\n")
@@ -192,17 +231,6 @@ class MainWindow(QtGui.QMainWindow):
     def to_chat_format(self, nickname, text):
         text = time.strftime("%d.%m.%Y %H:%M:%S")+" "+nickname+" :"+text       
         return text
-               
-    def _enter_channel(self, item):
-        if item.is_channel:
-            self._add_channel_to_tab(item.text(0))
-            self.client.command_join(item.channel_id, item.server_id)
-
-    def _add_channel_to_tab(self, channel):
-        tab_channel = uic.loadUi("gui/ChannelWidget.ui")
-        tab_channel.setObjectName(_fromUtf8("tab_channel"))
-
-        self.tab_widget.addTab(tab_channel, _fromUtf8(channel))
 
     def _add_user_to_list(self, user):
         self.lobby.usersList.addItem(user)
@@ -222,7 +250,6 @@ class MainWindow(QtGui.QMainWindow):
             # create root server and add to channels list
             root = QtGui.QTreeWidgetItem(["Server %s" %
                                           address.toString()])
-            root.is_channel = False
 
             # set known identifiers
             root.server_id = server_id
@@ -237,7 +264,6 @@ class MainWindow(QtGui.QMainWindow):
                                     socket.localAddress().toString() + ':' +
                                     str(socket.localPort()) + ')')
                     channel = QtGui.QTreeWidgetItem([channel_text])
-                    channel.is_channel = True
 
                     # set known identifiers
                     channel.server_id = server_id
@@ -253,7 +279,6 @@ class MainWindow(QtGui.QMainWindow):
                         for client_id in client_list:
                             client_text = self.client.users[client_id]
                             client = QtGui.QTreeWidgetItem([client_text])
-                            client.is_channel = False
 
                             # set known identifiers
                             client.server_id = server_id

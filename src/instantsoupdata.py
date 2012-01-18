@@ -206,7 +206,8 @@ class Client(QtCore.QObject):
 
         # delete combination from memberships
         key = (server_id, channel_id)
-        del self.membership[key]
+        if key in self.membership:
+            del self.membership[key]
 
         self.send_client_membership_option()
 
