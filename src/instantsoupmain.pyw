@@ -120,6 +120,8 @@ class MainWindow(QtGui.QMainWindow):
                     menu = QtGui.QMenu()
                     leave_action = QtGui.QAction("Leave Channel", menu)
                     leave_action.triggered.connect(lambda: self.client.command_exit(client_item.channel_id, client_item.server_id))
+                    # Deletes channel out of tab list if its possible to have to listeners
+                    leave_action.triggered.connect(lambda: self.tab_channel_list.remove(client_item.channel_id))        
                     menu.addAction(leave_action)
                     menu.exec_(QtGui.QCursor.pos())
                 iterator.__iadd__(1)
