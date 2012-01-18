@@ -93,8 +93,9 @@ class MainWindow(QtGui.QMainWindow):
         # if we have lost a client, show it
         self.client.client_removed.connect(self._update_user_list)
 
-        # if we have an updated nickname, show it
+        # if we have an updated nickname, show it in user and channel list
         self.client.client_nick_change.connect(self._update_user_list)
+        self.client.client_nick_change.connect(self._update_channel_list)
 
         # if we have a new membership, show it
         self.client.client_membership_changed.connect(self._update_channel_list)

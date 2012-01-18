@@ -514,6 +514,12 @@ class Server(QtCore.QObject):
     def handle_client_nick_option(self, address, client_id):
         self.users[address] = client_id
 
+        # if we detect this option, maybe a new client was started
+        # -> broadcast rapidly server data and channels
+        self.send_server_option()
+        timer = QtCore.QTimer()
+        timer.singleShot(1000, self.send_server_channel_option)
+
     #
     # PROCESSING FUNCTIONS (INCOMING SERVER COMMANDOS)
     #
