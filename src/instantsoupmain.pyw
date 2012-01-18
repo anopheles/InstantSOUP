@@ -15,6 +15,7 @@ participants and chat rooms.
 
 import sys
 import logging
+import time
 
 from PyQt4 import QtCore, QtGui, uic
 from instantsoupdata import InstantSoupData, Client, Server
@@ -41,6 +42,7 @@ class MainWindow(QtGui.QMainWindow):
         self.init_server()
         self.init_client()
         self.init_ui()
+        self.tab_channel_list = list()
 
     def init_server(self):
         self.server = Server(parent=self)
@@ -54,7 +56,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.tab_widget = QtGui.QTabWidget()
         self.tab_widget.setTabsClosable(True)
-        self.tab_widget.setMovable(True)
+        self.tab_widget.setMovable(False)
         self.tab_widget.setObjectName(_fromUtf8("tab_widget"))
 
         self.lobby = uic.loadUi("gui/lobbyWidget.ui")
@@ -145,17 +147,41 @@ class MainWindow(QtGui.QMainWindow):
         else:
             self.client.command_join(channel, server_id)
 
-    # TODO: Benny
-    def enter_channel(self, item):
-        if item.is_channel:
-            self.add_channel_to_tab(item.text(0))
-
-    def add_channel_to_tab(self, channel):
+    def enter_channel(self, tree_item):
+        if tree_item.is_channel:
+            channel_item = tree_item        
+            self.tab_channel_list.append(channel_item.uid)
+            self.add_channel_to_tab(channel_item.text(0))
+            
+    def add_channel_to_tab(self, channelname):
         tab_channel = uic.loadUi("gui/ChannelWidget.ui")
         tab_channel.setObjectName(_fromUtf8("tab_channel"))
-
-        self.tab_widget.addTab(tab_channel, _fromUtf8(channel))
-
+        tab_channel.messageEdit.editingFinished.connect(self.send_message)
+        #self.client.server_sends_message.connect(self.display_message)
+        self.tab_widget.addTab(tab_channel, _fromUtf8(channelname))
+            
+    def send_message(self):
+        index = self.tab_widget.currentIndex()-1
+        server_id = self.tab_channel_list[index]
+        server_name = self.tab_widget.tabText(0)
+        message = str(self.tab_widget.currentWidget().messageEdit.text())
+        self.tab_widget.currentWidget().messageEdit.clear()
+        self.client.command_say(message, server_name, server_id)
+    
+    def display_message(self, nickname, text, server_id):
+        try:
+            list_position = self.tab_channel_list.index(server_id)
+            textbox = self.tab_widget.widget(list_position+1).chatHistory
+            textbox.insertPlainText(self.to_chat_format(nickname, text))
+            textbox.insertPlainText("\n")
+            
+        except IndexError:
+            print "Can not display the message"
+            
+    def to_chat_format(self, nickname, text):
+        text = time.strftime("%d.%m.%Y %H:%M:%S")+" "+nickname+" :"+text       
+        return text
+               
     def add_user_to_list(self, user):
         self.lobby.usersList.addItem(user)
 
@@ -210,7 +236,14 @@ class MainWindow(QtGui.QMainWindow):
             item.setText(value)
 
             self.add_user_to_list(item)
-
+        
+    def update_channel_user_list(self):
+        tab = self.tab_widget.currentWidget()
+        if tab != self.lobby:
+            # namen reingecheatet
+            tab.usersList = self.lobby.userList
+            
+            
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     main_window = MainWindow()
