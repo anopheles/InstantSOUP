@@ -155,7 +155,6 @@ class MainWindow(QtGui.QMainWindow):
             msg_box.setText('Please select a server!')
             msg_box.exec_()
 
-<<<<<<< HEAD
     def enter_channel(self, tree_item):
         if tree_item.is_channel:
             channel_item = tree_item        
@@ -191,8 +190,6 @@ class MainWindow(QtGui.QMainWindow):
         text = time.strftime("%d.%m.%Y %H:%M:%S")+" "+nickname+" :"+text       
         return text
                
-    def add_user_to_list(self, user):
-=======
     def _enter_channel(self, item):
         if item.is_channel:
             self._add_channel_to_tab(item.text(0))
@@ -205,7 +202,6 @@ class MainWindow(QtGui.QMainWindow):
         self.tab_widget.addTab(tab_channel, _fromUtf8(channel))
 
     def _add_user_to_list(self, user):
->>>>>>> 7b08085aa4bd9ed39103ffbcdeb8ec67b50443ed
         self.lobby.usersList.addItem(user)
 
     def _update_channel_list(self):
@@ -277,20 +273,14 @@ class MainWindow(QtGui.QMainWindow):
             item = QtGui.QListWidgetItem()
             item.setText(value)
 
-<<<<<<< HEAD
-            self.add_user_to_list(item)
+            self._add_user_to_list(item)
         
     def update_channel_user_list(self):
         tab = self.tab_widget.currentWidget()
         if tab != self.lobby:
             # namen reingecheatet
-            tab.usersList = self.lobby.userList
-            
-            
-=======
-            self._add_user_to_list(item)
+            tab.usersList = self.lobby.userLis
 
->>>>>>> 7b08085aa4bd9ed39103ffbcdeb8ec67b50443ed
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
     main_window = MainWindow()
