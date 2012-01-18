@@ -179,7 +179,7 @@ class MainWindow(QtGui.QMainWindow):
 
             # do some stuff :)
             self.client.command_join(channel_id, server_id)
-            tab = self._add_channel_to_tab(channel_name)
+            tab = self._add_channel_to_tab(channel_name, server_id, channel_id)
             self.tabs[(server_id, channel_id)] = tab
 
     def _leave_channel(self, tree_item):
@@ -201,22 +201,28 @@ class MainWindow(QtGui.QMainWindow):
                 self.tab_widget.removeTab(i)
             i += 1
 
-    def _add_channel_to_tab(self, channelname):
+    def _add_channel_to_tab(self, channel_name, server_id, channel_id):
         tab_channel = uic.loadUi("gui/ChannelWidget.ui")
-        tab_channel.setObjectName(_fromUtf8("tab_channel"))
-        tab_channel.messageEdit.editingFinished.connect(self._send_message)
+        tab_channel.setObjectName(_fromUtf8(channel_name))
+        tab_channel.messageEdit.editingFinished.connect(lambda:
+            self._send_message(tab_channel))
+
+        # a tab knows his server and channel
+        tab_channel.server_id = server_id
+        tab_channel.channel_id = channel_id
+
         #self.client.server_sends_message.connect(self.display_message)
-        self.tab_widget.addTab(tab_channel, _fromUtf8(channelname))
+        self.tab_widget.addTab(tab_channel, _fromUtf8(channel_name))
 
         return tab_channel
 
-    def _send_message(self):
-        index = self.tab_widget.currentIndex()-1
-        server_id = self.tabs[index]
-        server_name = self.tab_widget.tabText(0)
-        message = str(self.tab_widget.currentWidget().messageEdit.text())
-        self.tab_widget.currentWidget().messageEdit.clear()
-        self.client.command_say(message, server_name, server_id)
+    def _send_message(self, tab_channel):
+        server_id = tab_channel.server_id
+        channel_id = tab_channel.channel_id
+        message = str(tab_channel.messageEdit.text())
+        tab_channel.messageEdit.clear()
+
+        self.client.command_say(message, channel_id, server_id)
     
     def display_message(self, nickname, text, server_id):
         try:
