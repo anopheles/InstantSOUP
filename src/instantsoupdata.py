@@ -174,14 +174,11 @@ class Client(QtCore.QObject):
 
         return socket
 
-    def read_from_tcp_socket(self, socket):
-        data = socket.readAll()
-        peer_pdu = InstantSoupData.peer_pdu.parse(data)
-        # uid = peer_pdu["id"]
-        for option in peer_pdu["option"]:
-            if option["option_id"] == "SERVER_INVITE_OPTION":
-                # TODO handle server invite option here
-                pass
+    def read_from_tcp_socket(self, tcp_socket):
+        data = str(tcp_socket.readAll())
+        tcp_socket.flush()
+        self.handle_data(data, tcp_socket)
+        tcp_socket.disconnected.connect(tcp_socket.deleteLater)
         data_text = InstantSoupData.command.parse(data)
         if data_text.startswith("SAY"):
             try:
@@ -194,6 +191,20 @@ class Client(QtCore.QObject):
             except IndexError:
                 print "Unknown Message Format"
                        
+
+#
+    # PROCESSING FUNCTIONS (INCOMING SERVER COMMANDOS)
+    #
+    def handle_data(self, command, tcp_socket):
+        data = InstantSoupData.command.parse(command)
+
+        if data.startswith("SAY"):
+            print "SAY"
+            #self.handle_say_command(data, tcp_socket)
+        elif data.startswith("JOIN"):
+            self.handle_join_command(data, tcp_socket)
+        elif data.startswith("EXIT"):
+            self.handle_exit_command(data, tcp_socket)
 
     #
     # SERVER COMMANDOS
@@ -510,11 +521,11 @@ class Server(QtCore.QObject):
             return
 
         # if the connection is ready, read from tcp_socket
-        tcp_socket.readyRead.connect(partial(self.read_incoming_socket,
+        tcp_socket.readyRead.connect(partial(self.read_from_tcp_socket,
             tcp_socket))
         tcp_socket.waitForReadyRead(self.DEFAULT_WAITING_TIME)
 
-    def read_incoming_socket(self, tcp_socket):
+    def read_from_tcp_socket(self, tcp_socket):
         data = str(tcp_socket.readAll())
         tcp_socket.flush()
         self.handle_data(data, tcp_socket)
