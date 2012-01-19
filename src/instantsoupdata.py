@@ -269,8 +269,9 @@ class Client(QtCore.QObject):
 
             # we are already connected!
             socket = self.servers[(server_id, channel)]
-            socket.write(InstantSoupData.command.build(command))
-            socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
+            if socket is not None and socket.isValid():
+                socket.write(InstantSoupData.command.build(command))
+                socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
 
     #
     # DATAGRAMS
@@ -512,6 +513,14 @@ class Server(QtCore.QObject):
         self.regular_pdu_timer.timeout.connect(self.send_regular_pdu)
         self.regular_pdu_timer.start(self.REGULAR_PDU_WAITING_TIME)
 
+    def _get_channel_from_user_list(self, tcp_socket):
+        for channel_id, client_sockets in self.channels.items():
+            for (client_id, t_socket) in copy.copy(client_sockets):
+
+                # compare sockets
+                if (tcp_socket == t_socket):
+                    return channel_id, client_id
+
     #
     # SOCKET FUNCTIONS
     #
@@ -587,14 +596,8 @@ class Server(QtCore.QObject):
 
     def handle_exit_command(self, data, tcp_socket):
         client_id = self.users[tcp_socket.peerAddress()]
-
-        # remove client from channel
-        for channel_id, client_sockets in self.channels.items():
-            for (client_id, t_socket) in copy.copy(client_sockets):
-
-                # compare sockets
-                if (tcp_socket == t_socket):
-                    self.channels[channel_id].remove((client_id, tcp_socket))
+        channel_id, _ = self._get_channel_from_user_list(tcp_socket)
+        self.channels[channel_id].remove((client_id, tcp_socket))
 
     def handle_say_command(self, data, tcp_socket):
 
@@ -605,8 +608,7 @@ class Server(QtCore.QObject):
 
             # build the key to get the channel_id
             client_id = self.users[tcp_socket.peerAddress()]
-            key = (client_id, tcp_socket)
-            channel_id = self.channels.find_value(key)
+            channel_id, _ = self._get_channel_from_user_list(tcp_socket)
 
             # send to all clients in channel
             for (_, tcp_socket) in self.channels[channel_id]:
