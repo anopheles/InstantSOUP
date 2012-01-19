@@ -3,6 +3,7 @@
 
 import logging
 import uuid
+import copy
 
 from construct import Container, Enum, PrefixedArray, Struct, ULInt32
 from construct import ULInt16, ULInt8, OptionalGreedyRange, PascalString
@@ -196,8 +197,18 @@ class Client(QtCore.QObject):
     # SERVER COMMANDOS
     #
     def command_join(self, channel_id, server_id):
-        self.send_command_to_server("JOIN\x00%s" % channel_id, server_id)
         key = (server_id, channel_id)
+
+        socket = self.servers[(server_id, None)]
+        address = socket.peerAddress()
+        port = socket.peerPort()
+        self.servers[key] = self.create_tcp_socket(address, port)
+
+        # signal: we have a new server!
+        self.server_new.emit()
+
+        self.send_command_to_server("JOIN\x00%s" % channel_id,
+                                    server_id, channel_id)
 
         # if combination not exist, create and be a member
         if key not in self.membership:
@@ -488,24 +499,24 @@ class Server(QtCore.QObject):
         self.udp_socket.readyRead.connect(self._process_pending_datagrams)
 
     def handle_connection(self):
-        client_connection = self.tcp_server.nextPendingConnection()
-        client_connection.disconnected.connect(client_connection.deleteLater)
+        tcp_socket = self.tcp_server.nextPendingConnection()
+        tcp_socket.disconnected.connect(tcp_socket.deleteLater)
 
-        if not client_connection.waitForConnected(self.DEFAULT_WAITING_TIME):
-            log.error((client_connection.error(),
-               client_connection.errorString()))
+        if not tcp_socket.waitForConnected(self.DEFAULT_WAITING_TIME):
+            log.error((tcp_socket.error(),
+               tcp_socket.errorString()))
             return
 
-        # if the connection is ready, read from socket
-        client_connection.readyRead.connect(partial(self.read_incoming_socket,
-            client_connection))
-        client_connection.waitForReadyRead(self.DEFAULT_WAITING_TIME)
+        # if the connection is ready, read from tcp_socket
+        tcp_socket.readyRead.connect(partial(self.read_incoming_socket,
+            tcp_socket))
+        tcp_socket.waitForReadyRead(self.DEFAULT_WAITING_TIME)
 
-    def read_incoming_socket(self, client_connection):
-        data = str(client_connection.readAll())
-        client_connection.flush()
-        self.handle_data(data, client_connection)
-        client_connection.disconnected.connect(client_connection.deleteLater)
+    def read_incoming_socket(self, tcp_socket):
+        data = str(tcp_socket.readAll())
+        tcp_socket.flush()
+        self.handle_data(data, tcp_socket)
+        tcp_socket.disconnected.connect(tcp_socket.deleteLater)
 
     #
     # PROCESSING FUNCTIONS (INCOMING PDUS)
@@ -537,52 +548,63 @@ class Server(QtCore.QObject):
     #
     # PROCESSING FUNCTIONS (INCOMING SERVER COMMANDOS)
     #
-    def handle_data(self, command, socket):
+    def handle_data(self, command, tcp_socket):
         data = InstantSoupData.command.parse(command)
 
         if data.startswith("SAY"):
-            self.handle_say_command(data, socket)
+            self.handle_say_command(data, tcp_socket)
         elif data.startswith("JOIN"):
-            self.handle_join_command(data, socket)
+            self.handle_join_command(data, tcp_socket)
         elif data.startswith("EXIT"):
-            self.handle_exit_command(data, socket)
+            self.handle_exit_command(data, tcp_socket)
 
-    def handle_exit_command(self, data, socket):
-        client_id = self.users[socket.peerAddress()]
+    def handle_exit_command(self, data, tcp_socket):
+        client_id = self.users[tcp_socket.peerAddress()]
 
         # remove client from channel
-        for channel_name, _ in self.channels.items():
-            if (client_id, socket) in self.channels[channel_name]:
-                self.channels[channel_name].remove((client_id, socket))
+        for channel_id, client_sockets in self.channels.items():
+            for (client_id, t_socket) in copy.copy(client_sockets):
 
-    def handle_say_command(self, data, socket):
+                # compare sockets
+                if (tcp_socket == t_socket):
+                    self.channels[channel_id].remove((client_id, tcp_socket))
+
+    def search_channel(self, tcp_socket):
+        for channel_id, client_sockets in self.channels.items():
+            for (client_id, t_socket) in client_sockets:
+
+                # compare sockets
+                if (tcp_socket == t_socket):
+                    return client_id, channel_id
+
+    def handle_say_command(self, data, tcp_socket):
 
         # send message to all connected peers in channel
         message = " ".join(data.split("\x00")[1:])
 
         try:
-            author_id, channel_name = self.search_channel(socket)
-            for (_, socket) in self.channels[channel_name]:
+            author_id, channel_name = self.search_channel(tcp_socket)
+            for (_, tcp_socket) in self.channels[channel_name]:
                 command = "SAY\x00%s\x00%s\x00" % (author_id, message)
                 data = InstantSoupData.command.build(command)
-                socket.write(data)
-                socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
+                tcp_socket.write(data)
+                tcp_socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
         except ValueError:
-            log.error("socket was not found, make sure the socket is" +
+            log.error("tcp_socket was not found, make sure the tcp_socket is" +
                 " associated with a channel. use the join command")
 
-    def handle_join_command(self, data, socket):
-        client_id = self.users[socket.peerAddress()]
+    def handle_join_command(self, data, tcp_socket):
+        client_id = self.users[tcp_socket.peerAddress()]
         channel_name = data.split("\x00")[1]
 
         if channel_name in self.channels:
-            self.channels[channel_name].add((client_id, socket))
+            self.channels[channel_name].add((client_id, tcp_socket))
         else:
             private = channel_name.startswith("@")
 
             # create a new channel
             self.channels[channel_name] = set()
-            self.channels[channel_name].add((client_id, socket))
+            self.channels[channel_name].add((client_id, tcp_socket))
 
             if not private:
                 self.send_server_channel_option()

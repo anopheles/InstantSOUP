@@ -150,7 +150,7 @@ class MainWindow(QtGui.QMainWindow):
         self.client.send_client_nick()
 
     def _create_channel(self):
-        channel = str(self.lobby.newChannelEdit.text())
+        channel_id = str(self.lobby.newChannelEdit.text())
 
         # all selected items
         selected_items = self.lobby.channelsList.selectedItems()
@@ -159,12 +159,14 @@ class MainWindow(QtGui.QMainWindow):
         if len(selected_items) > 0:
             server_id = selected_items[0].server_id
 
-            # if we have a channel name, join it
-            if channel:
-                self.client.command_join(channel, server_id)
+            # if we have a channel_id name, join it
+            if channel_id:
+                self.client.command_join(channel_id, server_id)
+                tab = self._add_channel_to_tab(channel_id, server_id, channel_id)
+                self.tabs[(server_id, channel_id)] = tab
             else:
                 msg_box = QtGui.QMessageBox()
-                msg_box.setText('Please enter a channel name!')
+                msg_box.setText('Please enter a channel_id name!')
                 msg_box.exec_()
         else:
             msg_box = QtGui.QMessageBox()
@@ -196,7 +198,7 @@ class MainWindow(QtGui.QMainWindow):
     def _remove_channel_from_tab(self, tab):
         number_of_tabs = len(self.tab_widget)
         i = 0
-        while(i< number_of_tabs): 
+        while(i < number_of_tabs):
             if tab == self.tab_widget.widget(i):
                 self.tab_widget.removeTab(i)
             i += 1
@@ -223,17 +225,17 @@ class MainWindow(QtGui.QMainWindow):
         tab_channel.messageEdit.clear()
 
         self.client.command_say(message, channel_id, server_id)
-    
+
     def display_message(self, nickname, text, server_id):
         try:
             list_position = self.tabs.index(server_id)
             textbox = self.tab_widget.widget(list_position+1).chatHistory
             textbox.insertPlainText(self.to_chat_format(nickname, text))
             textbox.insertPlainText("\n")
-            
+
         except IndexError:
             print "Can not display the message"
-            
+
     def to_chat_format(self, nickname, text):
         text = time.strftime("%d.%m.%Y %H:%M:%S")+" "+nickname+" :"+text       
         return text
@@ -308,7 +310,7 @@ class MainWindow(QtGui.QMainWindow):
             item.setText(value)
 
             self._add_user_to_list(item)
-    #TODO   
+
     def update_channel_user_list(self):
         tab = self.tab_widget.currentWidget()
         if tab != self.lobby:
