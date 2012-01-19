@@ -186,7 +186,8 @@ class Client(QtCore.QObject):
             try:
                 option, author_id, message = data_text.split("\x00")
                 nickname = self.users[author_id]
-                self.client_message_received.emit(nickname, message)              
+                channel_id = socket.
+                self.client_message_received.emit(nickname, message, channel_id)              
             except IndexError:
                 print "Unknown Message Format"
                        

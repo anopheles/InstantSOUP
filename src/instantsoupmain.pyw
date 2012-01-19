@@ -308,7 +308,7 @@ class MainWindow(QtGui.QMainWindow):
             item.setText(value)
 
             self._add_user_to_list(item)
-        
+    #TODO   
     def update_channel_user_list(self):
         tab = self.tab_widget.currentWidget()
         if tab != self.lobby:
