@@ -106,6 +106,9 @@ class Client(QtCore.QObject):
 
     # emitted when a server is removed
     server_removed = QtCore.pyqtSignal()
+    
+    #emitted when a message was received from server
+    client_message_received = QtCore.pyqtSignal()
 
     def __init__(self, nickname="Telematik", parent=None):
         QtCore.QObject.__init__(self, parent)
@@ -178,6 +181,15 @@ class Client(QtCore.QObject):
             if option["option_id"] == "SERVER_INVITE_OPTION":
                 # TODO handle server invite option here
                 pass
+        data_text = InstantSoupData.command.parse(data)
+        if data_text.startswith("SAY"):
+            try:
+                option, author_id, message = data_text.split("\x00")
+                nickname = self.users[author_id]
+                self.client_message_received.emit(nickname, message)              
+            except IndexError:
+                print "Unknown Message Format"
+                       
 
     #
     # SERVER COMMANDOS
