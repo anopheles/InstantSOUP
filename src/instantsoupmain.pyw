@@ -41,6 +41,7 @@ class MainWindow(QtGui.QMainWindow):
         self.init_client()
         self.init_ui()
 
+        # mapping from (server_id, channel_id) to (QWidget)
         self.tabs = {}
 
     def init_server(self):
@@ -103,6 +104,18 @@ class MainWindow(QtGui.QMainWindow):
 
         # if we have lost a server
         self.client.server_removed.connect(self._update_channel_list)
+
+        # if we have a new message
+        self.client.client_message_received[str, str].connect(self.output)
+
+    def output(self, server_id, channel_id):
+        key = (str(server_id), str(channel_id))
+        if key in self.client.channel_history:
+            if key in self.tabs:
+                tab = self.tabs[key]
+                tab.chatHistory.clear()
+                for message in self.client.channel_history[key]:
+                    tab.chatHistory.append(message)
 
     def _handle_channel_list_click(self, tree_item):
 
@@ -213,7 +226,6 @@ class MainWindow(QtGui.QMainWindow):
         tab_channel.server_id = server_id
         tab_channel.channel_id = channel_id
 
-        #self.client.server_sends_message.connect(self.display_message)
         self.tab_widget.addTab(tab_channel, _fromUtf8(channel_name))
 
         return tab_channel
@@ -225,20 +237,6 @@ class MainWindow(QtGui.QMainWindow):
         tab_channel.messageEdit.clear()
 
         self.client.command_say(message, channel_id, server_id)
-
-    def display_message(self, nickname, text, server_id):
-        try:
-            list_position = self.tabs.index(server_id)
-            textbox = self.tab_widget.widget(list_position+1).chatHistory
-            textbox.insertPlainText(self.to_chat_format(nickname, text))
-            textbox.insertPlainText("\n")
-
-        except IndexError:
-            print "Can not display the message"
-
-    def to_chat_format(self, nickname, text):
-        text = time.strftime("%d.%m.%Y %H:%M:%S")+" "+nickname+" :"+text       
-        return text
 
     def _add_user_to_list(self, user):
         self.lobby.usersList.addItem(user)
@@ -285,16 +283,17 @@ class MainWindow(QtGui.QMainWindow):
                     if key in self.client.membership:
                         client_list = self.client.membership[key]
                         for client_id in client_list:
-                            client_text = self.client.users[client_id]
-                            client = QtGui.QTreeWidgetItem([client_text])
+                            if client_id in self.client.users:
+                                client_text = self.client.users[client_id]
+                                client = QtGui.QTreeWidgetItem([client_text])
 
-                            # set known identifiers
-                            client.server_id = server_id
-                            client.channel_id = channel_id
-                            client.client_id = client_id
+                                # set known identifiers
+                                client.server_id = server_id
+                                client.channel_id = channel_id
+                                client.client_id = client_id
 
-                            # add to root
-                            channel.addChild(client)
+                                # add to root
+                                channel.addChild(client)
 
         # show all
         self.lobby.channelsList.expandAll()

@@ -11,6 +11,7 @@ from construct import CString, Switch
 from PyQt4 import QtCore, QtNetwork
 from functools import partial
 from collections import defaultdict
+from time import gmtime, strftime
 
 log = logging.getLogger("instantsoup")
 log.setLevel(logging.DEBUG)
@@ -107,9 +108,9 @@ class Client(QtCore.QObject):
 
     # emitted when a server is removed
     server_removed = QtCore.pyqtSignal()
-    
+
     #emitted when a message was received from server
-    client_message_received = QtCore.pyqtSignal()
+    client_message_received = QtCore.pyqtSignal(str, str)
 
     def __init__(self, nickname="Telematik", parent=None):
         QtCore.QObject.__init__(self, parent)
@@ -120,15 +121,15 @@ class Client(QtCore.QObject):
 
         self.create_udp_socket()
 
-        # mapping from client.id to nickname
+        # mapping from (client_id) to (nickname)
         self.users = {}
 
-        # mapping from client.id to timer (which is a QTimer)
+        # mapping from (client_id) to timer (which is a QTimer)
         self.users_timers = {}
 
         # mapping from (server_id, channel) to a tuple containing
         # (tcp_socket)
-        self.servers = {}
+        self.servers = Lookup()
 
         # mapping from (server_id, channel) to a tuple containing
         # (timer) - (which is a QTimer)
@@ -190,17 +191,34 @@ class Client(QtCore.QObject):
         data = InstantSoupData.command.parse(command)
 
         if data.startswith("SAY"):
-            try:
-                client_id = data.split("\x00")[1]
-                message = " ".join(data.split("\x00")[2:])
-                print (client_id, ' say ', message)
-            except IndexError:
-                print "Unknown Message Format"
-            #self.handle_say_command(data, tcp_socket)
-        elif data.startswith("JOIN"):
-            self.handle_join_command(data, tcp_socket)
-        elif data.startswith("EXIT"):
-            self.handle_exit_command(data, tcp_socket)
+            self.handle_say_command(data, tcp_socket)
+
+    def handle_say_command(self, data, tcp_socket):
+        key = self.servers.find_key(tcp_socket)
+        (server_id, channel_id) = key
+
+        if channel_id is not None:
+
+            client_id = data.split("\x00")[1]
+            nickname = client_id
+
+            # overwrite nickname if we have one
+            if client_id in self.users:
+                nickname = self.users[client_id]
+
+            time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+            message = QtCore.QString(" ".join(data.split("\x00")[2:]))
+
+            if len(str(message.trimmed())) > 0:
+                entry = ("[%s] %s: %s" % (time, nickname, message))
+
+                if key not in self.channel_history:
+                    self.channel_history[key] = list()
+
+                self.channel_history[key].append(entry)
+
+                # SIGNAL: new message
+                self.client_message_received.emit(server_id, channel_id)
 
     #
     # SERVER COMMANDOS
@@ -471,7 +489,7 @@ class Server(QtCore.QObject):
         self.tcp_server = QtNetwork.QTcpServer(self)
 
         # mapping from (channel_id) to a list of (client_id, tcp_socket)
-        self.channels = {}
+        self.channels = Lookup()
 
         # mapping from (address) to (client_id)
         self.users = {}
@@ -578,26 +596,27 @@ class Server(QtCore.QObject):
                 if (tcp_socket == t_socket):
                     self.channels[channel_id].remove((client_id, tcp_socket))
 
-    def search_channel(self, tcp_socket):
-        for channel_id, client_sockets in self.channels.items():
-            for (client_id, t_socket) in client_sockets:
-
-                # compare sockets
-                if (tcp_socket == t_socket):
-                    return client_id, channel_id
-
     def handle_say_command(self, data, tcp_socket):
 
         # send message to all connected peers in channel
         message = " ".join(data.split("\x00")[1:])
 
         try:
-            author_id, channel_name = self.search_channel(tcp_socket)
-            for (_, tcp_socket) in self.channels[channel_name]:
-                command = "SAY\x00%s\x00%s\x00" % (author_id, message)
+
+            # build the key to get the channel_id
+            client_id = self.users[tcp_socket.peerAddress()]
+            key = (client_id, tcp_socket)
+            channel_id = self.channels.find_value(key)
+
+            # send to all clients in channel
+            for (_, tcp_socket) in self.channels[channel_id]:
+                command = "SAY\x00%s\x00%s\x00" % (client_id, message)
                 data = InstantSoupData.command.build(command)
-                tcp_socket.write(data)
-                tcp_socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
+
+                # still connected?
+                if tcp_socket.isValid():
+                    tcp_socket.write(data)
+                    tcp_socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
         except ValueError:
             log.error("tcp_socket was not found, make sure the tcp_socket is" +
                 " associated with a channel. use the join command")
@@ -693,23 +712,13 @@ class Server(QtCore.QObject):
     def send_datagram(self, datagram):
         self.udp_socket.writeDatagram(datagram, group_address, broadcast_port)
 
+
 # search a dictionary for key or value
 # using named functions or a class
 # tested with Python25   by Ene Uran    01/19/2008
 
 
-def find_key(dic, val):
-    """return the key of dictionary dic given the value"""
-    return [k for k, v in dic.iteritems() if v == val][0]
-
-
-def find_value(dic, key):
-    """return the value of dictionary dic given the key"""
-    return dic[key]
-
-
 class Lookup(dict):
-
     """
     a dictionary which can lookup value by key, or keys by value
     """
@@ -724,4 +733,12 @@ class Lookup(dict):
 
     def get_value(self, key):
         """find the value given a key"""
+        return self[key]
+
+    def find_key(self, val):
+        """return the key of dictionary dic given the value"""
+        return [k for k, v in self.iteritems() if v == val][0]
+
+    def find_value(self, key):
+        """return the value of dictionary dic given the key"""
         return self[key]
