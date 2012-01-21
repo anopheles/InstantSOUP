@@ -81,7 +81,7 @@ class InstantSoupData(object):
                    OptionalGreedyRange(option)
                )
 
-    command = PascalString("command", length_field=ULInt32("length"))
+    command = PascalString("command", length_field=ULInt32("length"), encoding='utf8')
 
 
 class Client(QtCore.QObject):
@@ -164,7 +164,7 @@ class Client(QtCore.QObject):
 
     # create a socket for a channel
     def create_tcp_socket(self, address, port):
-        socket = QtNetwork.QTcpSocket()
+        socket = QtNetwork.QTcpSocket(parent=self)
 
         # we have a port, connect!
         socket.connectToHost(address, port)
@@ -194,7 +194,11 @@ class Client(QtCore.QObject):
             self.handle_say_command(data, tcp_socket)
 
     def handle_say_command(self, data, tcp_socket):
-        key = self.servers.find_key(tcp_socket)
+        try:
+            key = self.servers.find_key(tcp_socket)
+        except IndexError:
+            log.error("Couldn't find (server_id, channel_id) with given tcp socket")
+            return
         (server_id, channel_id) = key
 
         if channel_id is not None:
@@ -209,7 +213,7 @@ class Client(QtCore.QObject):
             time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
             message = QtCore.QString(" ".join(data.split("\x00")[2:]))
 
-            if len(str(message.trimmed())) > 0:
+            if message.trimmed().length():
                 entry = ("[%s] %s: %s" % (time, nickname, message))
 
                 if key not in self.channel_history:
