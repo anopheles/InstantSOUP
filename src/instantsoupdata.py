@@ -7,7 +7,7 @@ import copy
 
 from construct import Container, Enum, PrefixedArray, Struct, ULInt32
 from construct import ULInt16, ULInt8, OptionalGreedyRange, PascalString
-from construct import CString, Switch
+from construct import CString, Switch, core
 from PyQt4 import QtCore, QtNetwork
 from functools import partial
 from collections import defaultdict
@@ -188,10 +188,31 @@ class Client(QtCore.QObject):
     # PROCESSING FUNCTIONS (INCOMING SERVER COMMANDOS)
     #
     def handle_data(self, command, tcp_socket):
-        data = InstantSoupData.command.parse(command)
+        try:
+            data = InstantSoupData.command.parse(command)
 
-        if data.startswith("SAY"):
-            self.handle_say_command(data, tcp_socket)
+            if data.startswith("SAY"):
+                self.handle_say_command(data, tcp_socket)
+        except core.FieldError:
+            peer_pdu = InstantSoupData.peer_pdu.parse(command)
+            # uid = peer_pdu["id"]
+            for option in peer_pdu["option"]:
+                if option["option_id"] == "SERVER_INVITE_OPTION":
+                    log.debug("RECEIVED SERVER_INVITE_OPTION")
+                    server_id =  peer_pdu["id"]
+                    channel_id = option["option_data"]["channel_id"]
+                    client_ids = option["option_data"]["client_id"]
+                    key = (server_id, channel_id)
+                    # quick and dirty, probably not rfc conform
+                    self.command_join(channel_id, server_id)
+                    for client_id in client_ids:
+                        if key in self.membership:
+                            self.membership[key].add(client_id)
+                        else:
+                            self.membership[key] = set()
+                            self.membership[key].add(client_id)
+
+
 
     def handle_say_command(self, data, tcp_socket):
         try:
@@ -256,6 +277,10 @@ class Client(QtCore.QObject):
         self.send_command_to_server("STANDBY\x00%s" % peer_id,
                                     server_id, channel_id)
 
+    def command_invite(self, client_ids, channel_id, server_id):
+        self.send_command_to_server("INVITE\x00%s"% "\x00".join(client_ids),
+                                    server_id, channel_id)
+
     def command_exit(self, channel_id, server_id):
         self.send_command_to_server("EXIT", server_id, channel_id)
 
@@ -270,7 +295,6 @@ class Client(QtCore.QObject):
         if (server_id, channel) not in self.servers:
             log.error("server %s doesn't exist" % server_id)
         else:
-
             # we are already connected!
             socket = self.servers[(server_id, channel)]
             if socket is not None and socket.isValid():
@@ -314,7 +338,7 @@ class Client(QtCore.QObject):
         # mapping from server_id to a list of channel_ids
         server_channels = defaultdict(list)
         for (server_id, channel_id), _ in self.membership.items():
-            if channel_id:
+            if channel_id and not channel_id.startswith("@"):
                 server_channels[server_id].append(channel_id)
 
         # build the channel list for a server
@@ -349,7 +373,6 @@ class Client(QtCore.QObject):
             packet = InstantSoupData.peer_pdu.parse(data)
             peer_uid = packet["id"]
             for option in packet["option"]:
-
                 if option["option_id"] == "CLIENT_NICK_OPTION":
                     self.handle_client_nick_option(peer_uid, option)
                 elif option["option_id"] == "CLIENT_MEMBERSHIP_OPTION":
@@ -439,9 +462,6 @@ class Client(QtCore.QObject):
                 except Exception as error:
                     log.error(error)
 
-    def handle_server_invite_option(self):
-        pass
-
     def remove_server(self, key):
         self.servers_timers[key].stop()
         del self.servers_timers[key]
@@ -522,7 +542,7 @@ class Server(QtCore.QObject):
             for (client_id, t_socket) in copy.copy(client_sockets):
 
                 # compare sockets
-                if (tcp_socket == t_socket):
+                if tcp_socket == t_socket:
                     return channel_id, client_id
 
     #
@@ -597,6 +617,8 @@ class Server(QtCore.QObject):
             self.handle_join_command(data, tcp_socket)
         elif data.startswith("EXIT"):
             self.handle_exit_command(data, tcp_socket)
+        elif data.startswith("INVITE"):
+            self.handle_invite_command(data, tcp_socket)
 
     def handle_exit_command(self, data, tcp_socket):
         client_id = self.users[tcp_socket.peerAddress()]
@@ -609,7 +631,6 @@ class Server(QtCore.QObject):
         message = " ".join(data.split("\x00")[1:])
 
         try:
-
             # build the key to get the channel_id
             client_id = self.users[tcp_socket.peerAddress()]
             channel_id, _ = self._get_channel_from_user_list(tcp_socket)
@@ -620,7 +641,7 @@ class Server(QtCore.QObject):
                 data = InstantSoupData.command.build(command)
 
                 # still connected?
-                if tcp_socket.isValid():
+                if tcp_socket.state() == tcp_socket.ConnectedState and tcp_socket.isValid():
                     tcp_socket.write(data)
                     tcp_socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
         except ValueError:
@@ -642,15 +663,20 @@ class Server(QtCore.QObject):
 
             if not private:
                 self.send_server_channel_option()
-            else:
-                self.send_server_invite_option([client_id], channel_name)
+
+    def handle_invite_command(self, data, tcp_socket):
+        client_id = self.users[tcp_socket.peerAddress()]
+        channel_id, _ = self._get_channel_from_user_list(tcp_socket)
+        invite_client_ids = data.split("\x00")[1:]
+        self.send_server_invite_option(invite_client_ids, channel_id)
+        #print client_id, "wants to invite", invite_client_ids, "into channel", channel_id
+        #print "raw data", repr(data)
 
     def send_server_invite_option(self, invite_client_ids, channel_id):
-
         # for each client_id find the socket on which to send the
         # server_invite option
         for invite_client_id in invite_client_ids:
-            for channel_id, client_sockets in self.channels.items():
+            for _, client_sockets in self.channels.items():
                 for (client_id, socket) in client_sockets:
                     if invite_client_id == client_id:
                         option_data = Container(channel_id=channel_id,
@@ -697,10 +723,10 @@ class Server(QtCore.QObject):
         self.pdu_number += 1
 
     def send_server_channel_option(self):
-        if self.channels:
-
+        public_channels = [channel for channel in self.channels if not channel.startswith("@")]
+        if public_channels:
             # define the data to send & send
-            option_data = Container(channels=self.channels.keys())
+            option_data = Container(channels=public_channels)
 
             option = Container(option_id="SERVER_CHANNELS_OPTION",
                          option_data=option_data

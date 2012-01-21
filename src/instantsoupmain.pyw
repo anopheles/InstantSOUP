@@ -18,6 +18,7 @@ import logging
 import time
 
 from PyQt4 import QtCore, QtGui, uic
+from PyQt4.QtCore import Qt
 from instantsoupdata import Client, Server
 from collections import defaultdict
 
@@ -108,6 +109,7 @@ class MainWindow(QtGui.QMainWindow):
         # if we have a new message
         self.client.client_message_received[str, str].connect(self.output)
 
+
     def output(self, server_id, channel_id):
         key = (str(server_id), str(channel_id))
         if key in self.client.channel_history:
@@ -117,7 +119,31 @@ class MainWindow(QtGui.QMainWindow):
                 for message in self.client.channel_history[key]:
                     tab.chatHistory.append(message)
 
+    def get_invite_client_ids(self, tree_items):
+        client_ids = set()
+        for items in tree_items:
+            try:
+                client_ids.add(items.client_id)
+            except AttributeError:
+                pass
+        try:
+            client_ids.remove(self.client.id)
+        except KeyError:
+            pass
+        return client_ids
+
+    def get_invite_channel_id(self, tree_items):
+        for item in tree_items:
+            if hasattr(item, 'channel_id') and not hasattr(item, 'client_id'):
+                if item.channel_id.startswith("@"):
+                    return item.channel_id
+
     def _handle_channel_list_click(self, tree_item):
+        tree_items = self.lobby.channelsList.selectedItems()
+
+        # collect all client_ids for invite option
+        client_ids = self.get_invite_client_ids(tree_items)
+        invite_channel_id = self.get_invite_channel_id(tree_items)
 
         # do we have a channel_id?
         if hasattr(tree_item, 'channel_id'):
@@ -149,6 +175,12 @@ class MainWindow(QtGui.QMainWindow):
                 action.triggered.connect(lambda:
                     self._leave_channel(tree_item))
             menu.addAction(action)
+
+            if client_ids and invite_channel_id:
+                invite_action = QtGui.QAction(menu)
+                invite_action.setText("Invite")
+                invite_action.triggered.connect(lambda : self.client.command_invite(client_ids, invite_channel_id, tree_item.server_id))
+                menu.addAction(invite_action)
 
             # start menu
             menu.exec_(QtGui.QCursor.pos())
