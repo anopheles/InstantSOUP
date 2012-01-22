@@ -135,7 +135,8 @@ class Client(QtCore.QObject):
         # (timer) - (which is a QTimer)
         self.servers_timers = {}
 
-        # mapping from (server_id, channel) to a list containing messages
+        # mapping from (server_id, channel) to a list of tuple containing
+        # (date, user, message)
         self.channel_history = {}
 
         # mapping from (server_id) to c(hannel_id) to a list of (client_ids)
@@ -164,27 +165,32 @@ class Client(QtCore.QObject):
 
     # create a socket for a channel
     def create_tcp_socket(self, address, port):
-        socket = QtNetwork.QTcpSocket(parent=self)
 
-        # we have a port, connect!
-        socket.connectToHost(address, port)
+        # create the socket
+        tcp_socket = QtNetwork.QTcpSocket(parent=self)
 
-        if not socket.waitForConnected(self.DEFAULT_WAITING_TIME):
+        # we have a destination port and address -> connect!
+        tcp_socket.connectToHost(address, port)
+
+        if not tcp_socket.waitForConnected(self.DEFAULT_WAITING_TIME):
             raise Exception('no connection for address %s:%s' %
                       (address.toString(), port))
 
         # connect with processing function
-        socket.readyRead.connect(partial(self.read_from_tcp_socket, socket))
+        tcp_socket.readyRead.connect(lambda:
+            self.read_from_tcp_socket(tcp_socket))
 
-        return socket
+        # if socket is disconnected, delete it later
+        tcp_socket.disconnected.connect(tcp_socket.deleteLater)
+
+        return tcp_socket
 
     def read_from_tcp_socket(self, tcp_socket):
         data = str(tcp_socket.readAll())
         tcp_socket.flush()
         self.handle_data(data, tcp_socket)
-        tcp_socket.disconnected.connect(tcp_socket.deleteLater)
 
-#
+    #
     # PROCESSING FUNCTIONS (INCOMING SERVER COMMANDOS)
     #
     def handle_data(self, command, tcp_socket):
@@ -213,11 +219,7 @@ class Client(QtCore.QObject):
                             self.membership[key].add(client_id)
 
     def handle_say_command(self, data, tcp_socket):
-        try:
-            key = self.servers.find_key(tcp_socket)
-        except IndexError:
-            log.error("Couldn't find (server_id, channel_id) with given tcp socket")
-            return
+        key = self.servers.find_key(tcp_socket)
         (server_id, channel_id) = key
 
         if channel_id is not None:
@@ -276,7 +278,7 @@ class Client(QtCore.QObject):
                                     server_id, channel_id)
 
     def command_invite(self, client_ids, channel_id, server_id):
-        self.send_command_to_server("INVITE\x00%s"% "\x00".join(client_ids),
+        self.send_command_to_server("INVITE\x00%s" % "\x00".join(client_ids),
                                     server_id, channel_id)
 
     def command_exit(self, channel_id, server_id):
@@ -289,12 +291,14 @@ class Client(QtCore.QObject):
 
         self.send_client_membership_option()
 
-    def send_command_to_server(self, command, server_id, channel=None):
-        if (server_id, channel) not in self.servers:
+    def send_command_to_server(self, command, server_id, channel_id=None):
+        key = (server_id, channel_id)
+        if key not in self.servers:
             log.error("server %s doesn't exist" % server_id)
         else:
+
             # we are already connected!
-            socket = self.servers[(server_id, channel)]
+            socket = self.servers[key]
             socket.write(InstantSoupData.command.build(command))
             socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
 
@@ -398,7 +402,7 @@ class Client(QtCore.QObject):
             self.users[client_id] = option["option_data"]
             self.users_timers[client_id] = QtCore.QTimer()
             self.users_timers[client_id].timeout.connect(lambda:
-                                self.remove_client(client_id))
+                self.remove_client(client_id))
 
             # SIGNAL: new client
             self.client_new.emit()
@@ -426,19 +430,22 @@ class Client(QtCore.QObject):
     def handle_server_option(self, server_id, option, address):
         if (server_id, None) not in self.servers:
 
-            # add new server
+            # get the port
             port = option["option_data"]["port"]
-            try:
-                socket = self.create_tcp_socket(address, port)
-                self.servers[(server_id, None)] = socket
-                self.servers_timers[server_id] = QtCore.QTimer()
-                self.servers_timers[server_id].timeout.connect(lambda:
-                    self.remove_server(server_id))
 
-                # SIGNAL: we have a new server!
-                self.server_new.emit()
-            except Exception as error:
-                log.error(error)
+            # create new socket
+            socket = self.create_tcp_socket(address, port)
+
+            # add the server itself to the server list
+            self.servers[(server_id, None)] = socket
+
+            # start timer for server timeout
+            self.servers_timers[server_id] = QtCore.QTimer()
+            self.servers_timers[server_id].timeout.connect(lambda:
+                self.remove_server(server_id))
+
+            # SIGNAL: we have a new server!
+            self.server_new.emit()
 
         # restart the timer
         if server_id in self.servers_timers:
@@ -449,16 +456,19 @@ class Client(QtCore.QObject):
         for channel in channels:
             key = (server_id, channel)
             if key not in self.servers:
-                try:
-                    socket = self.servers[(server_id, None)]
-                    address = socket.peerAddress()
-                    port = socket.peerPort()
-                    self.servers[key] = self.create_tcp_socket(address, port)
 
-                    # signal: we have a new server!
-                    self.server_new.emit()
-                except Exception as error:
-                    log.error(error)
+                # get the socket of the server itself
+                socket = self.servers[(server_id, None)]
+
+                # get the server address and port
+                address = socket.peerAddress()
+                port = socket.peerPort()
+
+                # create new socket (= tcp connection to server)
+                self.servers[key] = self.create_tcp_socket(address, port)
+
+                # SIGNAL: we have a new server!
+                self.server_new.emit()
 
     def remove_server(self, key):
         self.servers_timers[key].stop()
@@ -475,10 +485,14 @@ class Client(QtCore.QObject):
         self.server_removed.emit()
 
     def disconnect_from_all_channels(self):
+
+        # get a independent list of the servers
         servers = copy.copy(self.servers)
 
         # delete all server entries
         for (server_id, channel_id) in servers:
+
+            # we cannot exit the server itself!
             if channel_id is not None:
                 self.command_exit(channel_id, server_id)
 
