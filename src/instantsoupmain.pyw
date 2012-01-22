@@ -109,7 +109,6 @@ class MainWindow(QtGui.QMainWindow):
         # if we have a new message
         self.client.client_message_received[str, str].connect(self.output)
 
-
     def output(self, server_id, channel_id):
         key = (str(server_id), str(channel_id))
         if key in self.client.channel_history:
@@ -179,7 +178,10 @@ class MainWindow(QtGui.QMainWindow):
             if client_ids and invite_channel_id:
                 invite_action = QtGui.QAction(menu)
                 invite_action.setText("Invite")
-                invite_action.triggered.connect(lambda : self.client.command_invite(client_ids, invite_channel_id, tree_item.server_id))
+                invite_action.triggered.connect(lambda:
+                    self.client.command_invite(client_ids,
+                                               invite_channel_id,
+                                               tree_item.server_id))
                 menu.addAction(invite_action)
 
             # start menu
@@ -341,6 +343,17 @@ class MainWindow(QtGui.QMainWindow):
             item.setText(value)
 
             self._add_user_to_list(item)
+
+    def closeEvent(self, event):
+        reply = QtGui.QMessageBox.question(self, 'Message',
+            "Are you sure to quit?", QtGui.QMessageBox.Yes | 
+            QtGui.QMessageBox.No, QtGui.QMessageBox.No)
+
+        if reply == QtGui.QMessageBox.Yes:
+            self.client.disconnect_from_all_channels()
+            event.accept()
+        else:
+            event.ignore()
 
     def update_channel_user_list(self):
         tab = self.tab_widget.currentWidget()
