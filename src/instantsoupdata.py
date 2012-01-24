@@ -10,12 +10,12 @@ from construct import ULInt16, ULInt8, OptionalGreedyRange, PascalString
 from construct import CString, Switch, core
 from PyQt4 import QtCore, QtNetwork
 from collections import defaultdict
-from time import gmtime, strftime
 
 log = logging.getLogger("instantsoup")
 log.setLevel(logging.DEBUG)
 
-group_address = QtNetwork.QHostAddress("239.255.99.63")
+group_address_ip4 = QtNetwork.QHostAddress("239.255.99.63")
+group_address_ip6 = QtNetwork.QHostAddress("ffx2::4C:48:43")
 broadcast_port = 55555
 server_start_port = 49190
 
@@ -158,7 +158,8 @@ class Client(QtCore.QObject):
         self.udp_socket = QtNetwork.QUdpSocket()
         self.udp_socket.bind(broadcast_port,
                              QtNetwork.QUdpSocket.ReuseAddressHint)
-        self.udp_socket.joinMulticastGroup(group_address)
+        self.udp_socket.joinMulticastGroup(group_address_ip4)
+        self.udp_socket.joinMulticastGroup(group_address_ip6)
 
         # connect the socket input with the processing function
         self.udp_socket.readyRead.connect(self.process_pending_datagrams)
@@ -362,7 +363,10 @@ class Client(QtCore.QObject):
                   self.pdu_number)
 
     def _send_datagram(self, datagram):
-        self.udp_socket.writeDatagram(datagram, group_address, broadcast_port)
+        self.udp_socket.writeDatagram(datagram, group_address_ip4,
+                                      broadcast_port)
+        self.udp_socket.writeDatagram(datagram, group_address_ip6,
+                                      broadcast_port)
 
     #
     # PROCESSING FUNCTIONS (INCOMING PDUS)
@@ -578,7 +582,7 @@ class Server(QtCore.QObject):
         self.udp_socket = QtNetwork.QUdpSocket()
         self.udp_socket.bind(broadcast_port,
                              QtNetwork.QUdpSocket.ReuseAddressHint)
-        self.udp_socket.joinMulticastGroup(group_address)
+        self.udp_socket.joinMulticastGroup(group_address_ip4)
 
         # connect the socket input with the processing function
         self.udp_socket.readyRead.connect(self._process_pending_datagrams)
@@ -802,7 +806,10 @@ class Server(QtCore.QObject):
                       self.pdu_number)
 
     def send_datagram(self, datagram):
-        self.udp_socket.writeDatagram(datagram, group_address, broadcast_port)
+        self.udp_socket.writeDatagram(datagram, group_address_ip4,
+                                      broadcast_port)
+        self.udp_socket.writeDatagram(datagram, group_address_ip6,
+                                      broadcast_port)
 
     def remove_client(self, key):
         self.users_timers[key].stop()
