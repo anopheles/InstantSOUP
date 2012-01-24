@@ -9,6 +9,7 @@ from construct import Container, Enum, PrefixedArray, Struct, ULInt32
 from construct import ULInt16, ULInt8, OptionalGreedyRange, PascalString
 from construct import CString, Switch, core
 from PyQt4 import QtCore, QtNetwork
+from PyQt4.QtCore import Qt
 from functools import partial
 from collections import defaultdict
 from time import gmtime, strftime
@@ -235,15 +236,16 @@ class Client(QtCore.QObject):
             message = QtCore.QString(" ".join(data.split("\x00")[2:]))
 
             if message.trimmed().length():
-                entry = ("[%s] %s: %s" % (time, nickname, message))
-
-                if key not in self.channel_history:
-                    self.channel_history[key] = list()
-
-                self.channel_history[key].append(entry)
-
-                # SIGNAL: new message
-                self.client_message_received.emit(server_id, channel_id)
+                
+                    entry = ("[%s] %s: %s" % (time, nickname, message))
+    
+                    if key not in self.channel_history:
+                        self.channel_history[key] = list()
+    
+                    self.channel_history[key].append(entry)
+    
+                    # SIGNAL: new message
+                    self.client_message_received.emit(server_id, channel_id)
 
     #
     # SERVER COMMANDOS

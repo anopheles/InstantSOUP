@@ -18,7 +18,7 @@ import logging
 import time
 
 from PyQt4 import QtCore, QtGui, uic
-from PyQt4.QtCore import Qt
+from PyQt4.QtCore import Qt, QString, QRegExp
 from instantsoupdata import Client, Server
 from collections import defaultdict
 
@@ -115,8 +115,17 @@ class MainWindow(QtGui.QMainWindow):
             if key in self.tabs:
                 tab = self.tabs[key]
                 tab.chatHistory.clear()
+                tab.chatHistory.setOpenExternalLinks(True)
                 for message in self.client.channel_history[key]:
-                    tab.chatHistory.append(message)
+                    qmessage = QString(message)
+                    if qmessage.contains("http://", Qt.CaseInsensitive):                   
+                        startpos = qmessage.indexOf("http://",0, Qt.CaseInsensitive)                      
+                        stoppos = qmessage.indexOf(" ", startpos)
+                        text_to_replace = qmessage.mid(startpos,stoppos-startpos)
+                        link_text = "<a href=\""+text_to_replace+"\">"+text_to_replace+"</a>"
+                        qmessage.replace(startpos, stoppos-startpos, link_text)
+                    tab.chatHistory.append(qmessage)
+                    
 
     def get_invite_client_ids(self, tree_items):
         client_ids = set()
@@ -255,6 +264,7 @@ class MainWindow(QtGui.QMainWindow):
         tab_channel.setObjectName(_fromUtf8(channel_name))
         tab_channel.messageEdit.editingFinished.connect(lambda:
             self._send_message(tab_channel))
+        tab_channel.chatHistory.setOpenExternalLinks(True)
 
         # a tab knows his server and channel
         tab_channel.server_id = server_id

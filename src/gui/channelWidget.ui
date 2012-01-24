@@ -33,7 +33,7 @@
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
       <item row="0" column="0">
-       <widget class="QTextEdit" name="chatHistory"/>
+       <widget class="QTextBrowser" name="chatHistory"/>
       </item>
      </layout>
     </widget>
