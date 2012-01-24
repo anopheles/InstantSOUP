@@ -231,11 +231,11 @@ class Client(QtCore.QObject):
             if client_id in self.users:
                 nickname = self.users[client_id]
 
-            time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+            time = QtCore.QDateTime.currentDateTime()
             message = QtCore.QString(" ".join(data.split("\x00")[2:]))
 
             if message.trimmed().length():
-                entry = ("[%s] %s: %s" % (time, nickname, message))
+                entry = (time, nickname, message)
 
                 if key not in self.channel_history:
                     self.channel_history[key] = list()
