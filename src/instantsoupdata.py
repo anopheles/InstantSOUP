@@ -517,6 +517,8 @@ class Server(QtCore.QObject):
 
     REGULAR_PDU_WAITING_TIME = 15000
 
+    DEFAULT_TIMEOUT_TIME = 2 * REGULAR_PDU_WAITING_TIME + DEFAULT_WAITING_TIME
+
     debug_output = QtCore.pyqtSignal(str)
 
     def __init__(self, parent=None):
@@ -538,6 +540,9 @@ class Server(QtCore.QObject):
 
         # mapping from (QHostAddress -> address) to (str -> client_id)
         self.users = {}
+
+        # mapping from (QHostAddress -> address) to (QTimer -> timer)
+        self.users_timers = {}
 
         if not self.tcp_server.listen(QtNetwork.QHostAddress.Any, self.port):
             log.error("Unable to start the server: %s." %
@@ -620,14 +625,30 @@ class Server(QtCore.QObject):
                         self.handle_client_nick_option(address, uid)
 
     def handle_client_nick_option(self, address, client_id):
+        do_update = False
+
         if address not in self.users:
+            do_update = True
+        else:
+            if self.users[address] != client_id:
+                do_update = True
+
+        if do_update:
             self.users[address] = client_id
+
+            # start timer for server timeout
+            self.users_timers[address] = QtCore.QTimer()
+            self.users_timers[address].timeout.connect(lambda:
+                self.remove_client(address))
 
             # if we detect this option, maybe a new client was started
             # -> broadcast rapidly server data and channels
             self.send_server_option()
             timer = QtCore.QTimer()
             timer.singleShot(1000, self.send_server_channel_option)
+
+        # restart the timer
+        self.users_timers[address].start(self.DEFAULT_TIMEOUT_TIME)
 
     #
     # PROCESSING FUNCTIONS (INCOMING SERVER COMMANDOS)
@@ -783,6 +804,10 @@ class Server(QtCore.QObject):
     def send_datagram(self, datagram):
         self.udp_socket.writeDatagram(datagram, group_address, broadcast_port)
 
+    def remove_client(self, key):
+        self.users_timers[key].stop()
+        del self.users_timers[key]
+        del self.users[key]
 
 # search a dictionary for key or value
 # using named functions or a class
