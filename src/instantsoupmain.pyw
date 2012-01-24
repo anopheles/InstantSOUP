@@ -114,18 +114,25 @@ class MainWindow(QtGui.QMainWindow):
         if key in self.client.channel_history:
             if key in self.tabs:
                 tab = self.tabs[key]
+
                 tab.chatHistory.clear()
                 tab.chatHistory.setOpenExternalLinks(True)
-                for message in self.client.channel_history[key]:
+
+                for current_message in self.client.channel_history[key]:
+                    (time, nickname, message) = current_message
+
                     # see   http://stackoverflow.com/questions/3321256/how-to
                     #       -use-regex-to-replace-urls-with-an-html-link-in-qt
-                    qmessage = QString(message)
+                    qmessage = QtCore.QString(message)
 
+                    # convert urls to hyperlinks
                     search = QRegExp("((?:https?|ftp)://\\S+)")
                     replace = QString("<a href=\"\\1\">\\1</a>")
                     qmessage.replace(search, replace)
 
-                    tab.chatHistory.append(qmessage)
+                    line = ("<p><b>%s</b> <em>%s</em></p><p>%s</p>" % (nickname, time.toString(), qmessage))
+
+                    tab.chatHistory.append(line)
 
     def get_invite_client_ids(self, tree_items):
         client_ids = set()
