@@ -162,7 +162,7 @@ class MainWindow(QtGui.QMainWindow):
         invite_channel_id = self.get_invite_channel_id(tree_items)
 
         # do we have a channel_id?
-        if hasattr(tree_item, 'channel_id'):
+        if hasattr(tree_item, 'channel_id') and not hasattr(tree_item, 'client_id'):
 
             items = set()
             iterator = QtGui.QTreeWidgetItemIterator(tree_item)
