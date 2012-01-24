@@ -9,8 +9,6 @@ from construct import Container, Enum, PrefixedArray, Struct, ULInt32
 from construct import ULInt16, ULInt8, OptionalGreedyRange, PascalString
 from construct import CString, Switch, core
 from PyQt4 import QtCore, QtNetwork
-from PyQt4.QtCore import Qt
-from functools import partial
 from collections import defaultdict
 from time import gmtime, strftime
 
@@ -82,7 +80,8 @@ class InstantSoupData(object):
                    OptionalGreedyRange(option)
                )
 
-    command = PascalString("command", length_field=ULInt32("length"), encoding='utf8')
+    command = PascalString("command", length_field=ULInt32("length"),
+                           encoding='utf8')
 
 
 class Client(QtCore.QObject):
@@ -206,7 +205,7 @@ class Client(QtCore.QObject):
             for option in peer_pdu["option"]:
                 if option["option_id"] == "SERVER_INVITE_OPTION":
                     log.debug("RECEIVED SERVER_INVITE_OPTION")
-                    server_id =  peer_pdu["id"]
+                    server_id = peer_pdu["id"]
                     channel_id = option["option_data"]["channel_id"]
                     client_ids = option["option_data"]["client_id"]
                     key = (server_id, channel_id)
@@ -236,16 +235,15 @@ class Client(QtCore.QObject):
             message = QtCore.QString(" ".join(data.split("\x00")[2:]))
 
             if message.trimmed().length():
-                
-                    entry = ("[%s] %s: %s" % (time, nickname, message))
-    
-                    if key not in self.channel_history:
-                        self.channel_history[key] = list()
-    
-                    self.channel_history[key].append(entry)
-    
-                    # SIGNAL: new message
-                    self.client_message_received.emit(server_id, channel_id)
+                entry = ("[%s] %s: %s" % (time, nickname, message))
+
+                if key not in self.channel_history:
+                    self.channel_history[key] = list()
+
+                self.channel_history[key].append(entry)
+
+                # SIGNAL: new message
+                self.client_message_received.emit(server_id, channel_id)
 
     #
     # SERVER COMMANDOS
@@ -705,7 +703,7 @@ class Server(QtCore.QObject):
                     self.send_server_channel_option()
 
     def handle_invite_command(self, data, tcp_socket):
-        client_id = self.users[tcp_socket.peerAddress()]
+        #client_id = self.users[tcp_socket.peerAddress()]
         channel_id, _ = self._get_channel_from_user_list(tcp_socket)
         invite_client_ids = data.split("\x00")[1:]
         self.send_server_invite_option(invite_client_ids, channel_id)
