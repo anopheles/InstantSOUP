@@ -92,13 +92,16 @@ class MainWindow(QtGui.QMainWindow):
 
         # if we have lost a client, show it
         self.client.client_removed.connect(self._update_user_list)
+        self.client.client_removed.connect(self._update_channel_user_list)
 
         # if we have an updated nickname, show it in user and channel list
         self.client.client_nick_change.connect(self._update_user_list)
         self.client.client_nick_change.connect(self._update_channel_list)
+        self.client.client_nick_change.connect(self._update_channel_user_list)
 
         # if we have a new membership, show it
         self.client.client_membership_changed.connect(self._update_channel_list)
+        self.client.client_membership_changed.connect(self._update_channel_user_list)
 
         # if we have a new server, show it
         self.client.server_new.connect(self._update_channel_list)
@@ -373,11 +376,27 @@ class MainWindow(QtGui.QMainWindow):
         else:
             event.ignore()
 
-    def update_channel_user_list(self):
-        tab = self.tab_widget.currentWidget()
-        if tab != self.lobby:
-            # namen reingecheatet
-            tab.usersList = self.lobby.userLis
+    def _update_channel_user_list(self):
+        number_of_tabs = len(self.tab_widget)
+        i = 0
+        while(i < number_of_tabs):
+            if self.lobby != self.tab_widget.widget(i):         
+                self.tab_widget.widget(i).usersList.clear()
+                server_id = self.tab_widget.widget(i).server_id
+                channel_id = self.tab_widget.widget(i).channel_id
+                key = (server_id, channel_id)
+                if key in self.client.membership:
+                    client_list = self.client.membership[key]
+                    for client_id in client_list:
+                        if client_id in self.client.users:
+                            client_text = self.client.users[client_id]
+                            client = QtGui.QListWidgetItem()
+                            client.setText(client_text)                          
+                            client.server_id = server_id
+                            client.channel_id = channel_id
+                            client.client_id = client_id                           
+                            self.tab_widget.widget(i).usersList.addItem(client)
+            i += 1
 
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
