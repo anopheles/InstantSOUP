@@ -5,8 +5,8 @@ import logging
 import uuid
 import copy
 
-from construct import Container, Enum, PrefixedArray, Struct, ULInt32
-from construct import ULInt16, ULInt8, OptionalGreedyRange, PascalString
+from construct import Container, Enum, PrefixedArray, Struct, UBInt32
+from construct import UBInt16, UBInt8, OptionalGreedyRange, PascalString
 from construct import CString, Switch, core
 from PyQt4 import QtCore, QtNetwork
 from collections import defaultdict
@@ -26,7 +26,7 @@ class InstantSoupData(object):
     server = Struct("server",
                  CString("server_id"),
                  PrefixedArray(CString('channels'),
-                     ULInt8("num_channels")
+                     UBInt8("num_channels")
                  )
              )
 
@@ -34,28 +34,28 @@ class InstantSoupData(object):
     opt_client_nick = CString('nickname')
 
     opt_client_membership = PrefixedArray(server,
-                                 ULInt8("num_servers")
+                                 UBInt8("num_servers")
                              )
 
     opt_server = Struct("opt_server",
-                     ULInt16("port")
+                     UBInt16("port")
                  )
 
     opt_server_channels = Struct("opt_server_channels",
                              PrefixedArray(CString("channels"),
-                                 ULInt8("num_channels"))
+                                 UBInt8("num_channels"))
                           )
 
     opt_server_invite = Struct("opt_server_invite",
                              CString("channel_id"),
                              PrefixedArray(CString("client_id"),
-                                 ULInt8("num_clients")
+                                 UBInt8("num_clients")
                              )
                          )
 
     # option fields
     option = Struct("option",
-                 Enum(ULInt8("option_id"),
+                 Enum(UBInt8("option_id"),
                      CLIENT_NICK_OPTION=0x01,
                      CLIENT_MEMBERSHIP_OPTION=0x02,
                      SERVER_OPTION=0x10,
@@ -80,7 +80,7 @@ class InstantSoupData(object):
                    OptionalGreedyRange(option)
                )
 
-    command = PascalString("command", length_field=ULInt32("length"),
+    command = PascalString("command", length_field=UBInt32("length"),
                            encoding='utf8')
 
 
