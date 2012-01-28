@@ -4,9 +4,11 @@
 import logging
 import uuid
 import copy
+import traceback
+
 
 from construct import Container, Enum, PrefixedArray, Struct, UBInt32
-from construct import UBInt16, UBInt8, OptionalGreedyRange, PascalString
+from construct import UBInt16, UBInt8, OptionalGreedyRange, PascalString, ULInt16
 from construct import CString, Switch, core
 from PyQt4 import QtCore, QtNetwork
 from collections import defaultdict
@@ -91,6 +93,8 @@ class Client(QtCore.QObject):
 
     DEFAULT_TIMEOUT_TIME = 2 * REGULAR_PDU_WAITING_TIME + DEFAULT_WAITING_TIME
 
+    MAXIMUM_DATAGRAM_LENGTH = 10000
+
     # emitted when a new client is discovered
     client_new = QtCore.pyqtSignal()
 
@@ -150,6 +154,8 @@ class Client(QtCore.QObject):
         self.regular_pdu_timer.timeout.connect(self.send_regular_pdu)
         self.regular_pdu_timer.start(self.REGULAR_PDU_WAITING_TIME)
 
+        self.tcp_sockets = []
+
     #
     # SOCKET FUNCTIONS
     #
@@ -170,12 +176,17 @@ class Client(QtCore.QObject):
         # create the socket
         tcp_socket = QtNetwork.QTcpSocket(parent=self)
 
+        self.tcp_sockets.append(tcp_socket)
+
         # we have a destination port and address -> connect!
         tcp_socket.connectToHost(address, port)
 
-        if not tcp_socket.waitForConnected(self.DEFAULT_WAITING_TIME):
-            raise Exception('no connection for address %s:%s' %
-                      (address.toString(), port))
+        try:
+            if not tcp_socket.waitForConnected(self.DEFAULT_WAITING_TIME):
+                log.error('no connection for address %s:%s' %
+                          (address.toString(), port))
+        except RuntimeError:
+            return
 
         # connect with processing function
         tcp_socket.readyRead.connect(lambda:
@@ -297,11 +308,13 @@ class Client(QtCore.QObject):
         if key not in self.servers:
             log.error("server %s doesn't exist" % server_id)
         else:
-
-            # we are already connected!
-            socket = self.servers[key]
-            socket.write(InstantSoupData.command.build(command))
-            socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
+            try:
+                # we are already connected!
+                socket = self.servers[key]
+                socket.write(InstantSoupData.command.build(command))
+                socket.waitForBytesWritten(self.DEFAULT_WAITING_TIME)
+            except RuntimeError:
+                log.debug("Socket deleted")
 
     #
     # DATAGRAMS
@@ -372,9 +385,8 @@ class Client(QtCore.QObject):
     # PROCESSING FUNCTIONS (INCOMING PDUS)
     #
     def process_pending_datagrams(self):
-        maxlen = self.udp_socket.pendingDatagramSize()
         while self.udp_socket.hasPendingDatagrams():
-            (data, address, _) = self.udp_socket.readDatagram(maxlen)
+            (data, address, _) = self.udp_socket.readDatagram(self.MAXIMUM_DATAGRAM_LENGTH)
             packet = InstantSoupData.peer_pdu.parse(data)
             peer_uid = packet["id"]
             for option in packet["option"]:
@@ -477,13 +489,18 @@ class Client(QtCore.QObject):
     def remove_server(self, key):
         self.servers_timers[key].stop()
         del self.servers_timers[key]
+        keys = []
 
         # delete all server entries
         for (server_id, channel_id) in self.servers:
             if key == server_id:
+                keys.append((server_id, channel_id))
                 socket = self.servers[(server_id, channel_id)]
-                del self.servers[(server_id, channel_id)]
-                socket.close()
+                #del self.servers[(server_id, channel_id)]
+                #socket.close()
+
+        for key in keys:
+            del self.servers[key]
 
         # server removed
         self.server_removed.emit()
@@ -522,6 +539,8 @@ class Server(QtCore.QObject):
     REGULAR_PDU_WAITING_TIME = 15000
 
     DEFAULT_TIMEOUT_TIME = 2 * REGULAR_PDU_WAITING_TIME + DEFAULT_WAITING_TIME
+
+    MAXIMUM_DATAGRAM_LENGTH = 10000
 
     debug_output = QtCore.pyqtSignal(str)
 
@@ -566,6 +585,8 @@ class Server(QtCore.QObject):
         self.regular_pdu_timer.timeout.connect(self.send_regular_pdu)
         self.regular_pdu_timer.start(self.REGULAR_PDU_WAITING_TIME)
 
+        self.tcp_sockets = []
+
     def _get_channel_from_user_list(self, tcp_socket):
         for channel_id, client_sockets in self.channels.items():
             for (client_id, t_socket) in copy.copy(client_sockets):
@@ -593,6 +614,10 @@ class Server(QtCore.QObject):
         # next connection request
         tcp_socket = self.tcp_server.nextPendingConnection()
 
+        print "incoming tcp connection"
+
+        self.tcp_sockets.append(tcp_socket)
+
         # if socket is disconnected, delete it later
         tcp_socket.disconnected.connect(tcp_socket.deleteLater)
 
@@ -616,12 +641,19 @@ class Server(QtCore.QObject):
     # PROCESSING FUNCTIONS (INCOMING PDUS)
     #
     def _process_pending_datagrams(self):
-        maxlen = self.udp_socket.pendingDatagramSize()
 
         # loop through all datagrams which are not send yet
         while self.udp_socket.hasPendingDatagrams():
-            (datagram, address, _) = self.udp_socket.readDatagram(maxlen)
-            packet = InstantSoupData.peer_pdu.parse(datagram)
+            (datagram, address, _) = self.udp_socket.readDatagram(self.MAXIMUM_DATAGRAM_LENGTH)
+            try:
+                packet = InstantSoupData.peer_pdu.parse(datagram)
+            except core.ArrayError:
+                #log.debug("Array Error %s" % address.toString())
+                #log.debug(repr(datagram))
+                #log.debug(self.id)
+                print maxlen
+                print len(datagram), repr(datagram)
+                return
             uid = packet['id']
             if uid != self.id:
                 for option in packet["option"]:
@@ -777,7 +809,11 @@ class Server(QtCore.QObject):
         pdu = Container(id=self.id,
                 option=[option])
 
+        #print pdu
         data = InstantSoupData.peer_pdu.build(pdu)
+        #print repr(data)
+        #test = InstantSoupData.peer_pdu.parse(data)
+        #print test
         self.send_datagram(data)
 
         log.debug('PDU: SERVER_OPTION - id: %i - SENT' % self.pdu_number)

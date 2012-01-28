@@ -185,15 +185,18 @@ class MainWindow(QtGui.QMainWindow):
             action = QtGui.QAction(menu)
 
             # if we are not in channel -> enter, else -> leave
-            if self.client.id not in items:
-                action.setText("Enter Channel")
-                action.triggered.connect(lambda:
+            if self.client.id not in items or True:
+                enter_action = QtGui.QAction(menu)
+                enter_action.setText("Enter Channel")
+                enter_action.triggered.connect(lambda:
                     self._enter_channel(tree_item))
-            else:
-                action.setText("Leave Channel")
-                action.triggered.connect(lambda:
+
+                leave_action = QtGui.QAction(menu)
+                leave_action.setText("Leave Channel")
+                leave_action.triggered.connect(lambda:
                     self._leave_channel(tree_item))
-            menu.addAction(action)
+            menu.addAction(enter_action)
+            menu.addAction(leave_action)
 
             if client_ids and invite_channel_id:
                 invite_action = QtGui.QAction(menu)
@@ -288,7 +291,7 @@ class MainWindow(QtGui.QMainWindow):
     def _send_message(self, tab_channel):
         server_id = tab_channel.server_id
         channel_id = tab_channel.channel_id
-        message = str(tab_channel.messageEdit.text())
+        message = tab_channel.messageEdit.text()
         tab_channel.messageEdit.clear()
 
         self.client.command_say(message, channel_id, server_id)
@@ -302,8 +305,11 @@ class MainWindow(QtGui.QMainWindow):
         server_list = self.client.servers.items()
 
         for (server_id, channel_id), socket in server_list:
-            key = (server_id, socket.peerAddress())
-            server_channels[key].append((channel_id, socket))
+            try:
+                key = (server_id, socket.peerAddress())
+                server_channels[key].append((channel_id, socket))
+            except RuntimeError:
+                pass
 
         # show all servers in network
         for (server_id, address), channel_list in server_channels.items():
