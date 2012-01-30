@@ -404,7 +404,6 @@ class Client(QtCore.QObject):
 
     # If an invite comes at udp socket from a server the server is created as a usual server
     def handle_server_invite_option(self, peer_uid, option, address):
-        print "incomming invite from: "+peer_uid+address
         self.handle_server_option(peer_uid, option, address)
         
     
