@@ -399,6 +399,7 @@ class Client(QtCore.QObject):
                 elif option["option_id"] == "SERVER_CHANNELS_OPTION":
                     self.handle_server_channels_option(peer_uid, option)
                 elif option["option_id"] == "SERVER_INVITE_OPTION":
+                    print "Incomming Invite"
                     self.handle_server_invite_option(peer_uid, option, address)
 
     # If an invite comes at udp socket from a server the server is created as a usual server
@@ -789,11 +790,8 @@ class Server(QtCore.QObject):
                                  )
 
                         pdu = Container(id=self.id, option=[option])
-                        # Hier muessen statt auf einem aktullen tcp socket die daten
-                        # mit einem unicast an den clienten versendet werden
-                        #socket.write(InstantSoupData.peer_pdu.build(pdu))
-                        #socket.waitForBytesWritten()
-                        ip_to_invite = QtNetwork.QHostAddress(socket.localAddress())
+                    
+                        ip_to_invite = QtNetwork.QHostAddress(socket.peerAddress())
                         udpSocket_for_invites =  QtNetwork.QUdpSocket(self)
                         udpSocket_for_invites.bind(ip_to_invite, broadcast_port, QtNetwork.QUdpSocket.ShareAddress)
                         udpSocket_for_invites.writeDatagram(InstantSoupData.peer_pdu.build(pdu), ip_to_invite, broadcast_port)
