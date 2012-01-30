@@ -399,8 +399,14 @@ class Client(QtCore.QObject):
                 elif option["option_id"] == "SERVER_CHANNELS_OPTION":
                     self.handle_server_channels_option(peer_uid, option)
                 elif option["option_id"] == "SERVER_INVITE_OPTION":
-                    self.handle_server_invite_option(peer_uid, option)
+                    self.handle_server_invite_option(peer_uid, option, address)
 
+    # If an invite comes at udp socket from a server the server is created as a usual server
+    def handle_server_invite_option(self, peer_uid, option, address):
+        print "incomming invite from: "+peer_uid+address
+        self.handle_server_option(peer_uid, option, address)
+        
+    
     def handle_client_nick_option(self, client_id, option):
 
         # new client found or client nick was changed
@@ -651,8 +657,6 @@ class Server(QtCore.QObject):
                 #log.debug("Array Error %s" % address.toString())
                 #log.debug(repr(datagram))
                 #log.debug(self.id)
-                print maxlen
-                print len(datagram), repr(datagram)
                 return
             uid = packet['id']
             if uid != self.id:
@@ -774,6 +778,8 @@ class Server(QtCore.QObject):
             for _, client_sockets in self.channels.items():
                 for (client_id, socket) in client_sockets:
                     if invite_client_id == client_id:
+                        #Hier kann es auch sein, dass nur eine Id gebraucht 
+                        #wird und nicht eine Liste...
                         option_data = Container(channel_id=channel_id,
                                           client_id=invite_client_ids
                                       )
@@ -783,9 +789,15 @@ class Server(QtCore.QObject):
                                  )
 
                         pdu = Container(id=self.id, option=[option])
-
-                        socket.write(InstantSoupData.peer_pdu.build(pdu))
-                        socket.waitForBytesWritten()
+                        # Hier muessen statt auf einem aktullen tcp socket die daten
+                        # mit einem unicast an den clienten versendet werden
+                        #socket.write(InstantSoupData.peer_pdu.build(pdu))
+                        #socket.waitForBytesWritten()
+                        ip_to_invite = QtNetwork.QHostAddress(socket.localAddress())
+                        udpSocket_for_invites =  QtNetwork.QUdpSocket(self)
+                        udpSocket_for_invites.bind(ip_to_invite, broadcast_port, QtNetwork.QUdpSocket.ShareAddress)
+                        udpSocket_for_invites.writeDatagram(InstantSoupData.peer_pdu.build(pdu), ip_to_invite, broadcast_port)
+                        
         log.debug('PDU: SERVER_INVITE_OPTION - id: %i - SENT' %
                   self.pdu_number)
 
