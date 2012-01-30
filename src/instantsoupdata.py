@@ -404,7 +404,7 @@ class Client(QtCore.QObject):
 
     # If an invite comes at udp socket from a server the server is created as a usual server
     def handle_server_invite_option(self, peer_uid, option, address):
-        self.handle_server_option(peer_uid, option, address)
+        self.handle_server_channels_option(peer_uid, option)
         
     
     def handle_client_nick_option(self, client_id, option):
