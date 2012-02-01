@@ -400,13 +400,27 @@ class Client(QtCore.QObject):
                     self.handle_server_channels_option(peer_uid, option)
                 elif option["option_id"] == "SERVER_INVITE_OPTION":
                     print "Incomming Invite"
-                    self.handle_server_invite_option(peer_uid, option, address)
+                    self.handle_server_invite_option(packet)
 
-    # If an invite comes at udp socket from a server the server is created as a usual server
-    def handle_server_invite_option(self, peer_uid, option, address):
-        self.handle_server_channels_option(peer_uid, option)
+    # If an invite comes at udp socket from a server, the client joins the server
+    def handle_server_invite_option(self, packet):
+        for option in packet["option"]:
+            if option["option_id"] == "SERVER_INVITE_OPTION":
+                log.debug("RECEIVED SERVER_INVITE_OPTION")
+                server_id = packet["id"]
+                channel_id = option["option_data"]["channel_id"]
+                client_ids = option["option_data"]["client_id"]
+                key = (server_id, channel_id)
+                # quick and dirty, probably not rfc conform
+                self.command_join(channel_id, server_id)
+                for client_id in client_ids:
+                    if key in self.membership:
+                        self.membership[key].add(client_id)
+                    else:
+                        self.membership[key] = set()
+                        self.membership[key].add(client_id)
         
-    
+           
     def handle_client_nick_option(self, client_id, option):
 
         # new client found or client nick was changed
